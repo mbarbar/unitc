@@ -21,6 +21,7 @@ typedef struct uc_suite *uc_suite;
   *
   * @param options Logical OR of values prefixed with UC_OPT.
   * @param name    Name of the suite - to appear as the title of reports.
+  *                Defaults to 'Main' if NULL.
   * @param comment A description of the suite - to appear as a complement
   *                to name. Can be omitted by passing NULL.
   *
@@ -30,25 +31,27 @@ uc_suite uc_init(const uint_least8_t options, const char *name,
                  const char *comment);
 
 /** Free a test suite. Using suite after this call results in undefined
-  * behaviour.
+  * behaviour. Does nothing if suite is NULL.
   *
   * @param suite Test suite to free.
   */
 void uc_free(uc_suite suite);
 
-/** Check whether an expression evaluates as expected.
+/** Check whether an expression evaluates as expected. Does nothing if suite is
+  * NULL.
   *
   * @param suite   Test suite in which the check belongs to.
   * @param cond    The condition to check - a check is deemed successful
   *                when cond evaluates to true.
   * @param comment Information about what is being checked. No other
   *                information about a check is available in (applicable)
-  *                reports
+  *                reports. Can be omitted by passing NULL.
   */
 void uc_check(uc_suite suite, const bool cond, const char *comment);
 
 /** Outputs a report showing suite's title, comment, and the number of
-  * successful checks vs. failed checks as a fraction.
+  * successful checks vs. failed checks as a fraction. Outputs nothing if
+  * suite is NULL.
   *
   * @param suite Test suite to generate report from.
   */
