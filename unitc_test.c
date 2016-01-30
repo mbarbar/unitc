@@ -32,6 +32,8 @@ static char *minunit_tests(void);
 
 /** Tests for function files_eq. */
 static char *test_files_eq(void);
+/** Tests for uc_init (just that it never fails before running more tests). */
+static char *test_uc_init(void);
 
 int main(void) {
         char *minunit_result;
@@ -73,6 +75,8 @@ static bool files_eq(char *path_a, char *path_b) {
 
 static char *minunit_tests(void) {
         mu_run_test(test_files_eq);
+        mu_run_test(test_uc_init);
+
         return NULL;
 }
 
@@ -92,6 +96,25 @@ static char *test_files_eq(void) {
         mu_assert("Check file is equal to itself",
                   files_eq(TEST_DIR "files_eq_diff_a",
                            TEST_DIR "files_eq_diff_a"));
+
+        return NULL;
+}
+
+static char *test_uc_init(void) {
+        uc_suite suite_a, suite_b;
+
+        suite_a = uc_init(UC_OPT_NONE, NULL, NULL);
+        mu_assert("Check suite_a was allocated", suite_a != NULL);
+        uc_free(suite_a);
+
+        suite_a = NULL;
+        suite_a = uc_init(UC_OPT_NONE, "Main", "Test suite.");
+        mu_assert("Check suite_a was allocated again", suite_a != NULL);
+        uc_free(suite_a);
+
+        suite_b = uc_init(UC_OPT_NONE, "Name", NULL);
+        mu_assert("Check suite_b was allocated", suite_b != NULL);
+        uc_free(suite_b);
 
         return NULL;
 }
