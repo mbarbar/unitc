@@ -44,7 +44,31 @@ int main(void) {
 }
 
 static bool files_eq(char *path_a, char *path_b) {
-        return false;
+        FILE *a_file, *b_file;
+        int a_char, b_char;
+
+        a_file = fopen(path_a, "rb");
+        if (a_file == NULL) return false;
+
+        b_file = fopen(path_b, "rb");
+        if (b_file == NULL) {
+                fclose(a_file);
+                return false;
+        }
+
+        a_char = fgetc(a_file);
+        b_char = fgetc(b_file);
+        while (a_char != EOF && b_char != EOF) {
+                if (a_char != b_char) break;
+
+                a_char = fgetc(a_file);
+                b_char = fgetc(b_file);
+        }
+
+        fclose(a_file);
+        fclose(b_file);
+
+        return a_char == b_char;
 }
 
 static char *minunit_tests(void) {
