@@ -1,7 +1,7 @@
 # unitc Makefile
 
 CC     = gcc
-CFLAGS = -std=c99 -Wall -Werror
+CFLAGS = -std=c99 -Wall -Werror -g
 
 DOC_CONF = doxygen_conf
 
@@ -22,7 +22,6 @@ doc: *.c *.h $(DOC_CONF)
 
 $(TEST_OUT): $(TEST_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^
-
 
 %.o: %.c $(HEADERS)
 	$(CC) $(CFLAGS) -c -o $@ $<
