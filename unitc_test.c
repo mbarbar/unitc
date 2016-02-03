@@ -2,9 +2,16 @@
   * \brief Tests for the unitc library.
   */
 
+#define _XOPEN_SOURCE 500
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "unitc.h"
 
@@ -13,6 +20,35 @@
 
 /** Location of (manually created) files containing expected output. */
 #define TEST_DIR "test_resources/"
+#define TMP_FILE_TEMPLATE TEST_DIR "XXXXXX"
+
+/** Set up for redirecting stdout to path (opens path to fd). Returns on
+  * failure. (For minunit).
+  */
+#define STDOUT_REDIR_SET_UP(path, fd) \
+        do { \
+                if ((fd = open(path, O_WRONLY)) == -1) { \
+                        return "Failed to open temporary file."; \
+                }; \
+                fflush(stdout); \
+                if (dup2(fd, STDOUT_FILENO) == -1) { \
+                        close(fd); \
+                        return "dup2 failed."; \
+                } \
+        } while (0)
+
+/** Closes fd and redirects stdout to orig_stdout. */
+#define STDOUT_REDIR_TEAR_DOWN(fd, orig_stdout) \
+        do { \
+                if (close(fd) == -1) { \
+                        return "Failed to close temporary file."; \
+                }; \
+                fflush(stdout); \
+                if (dup2(orig_stdout, STDOUT_FILENO) == -1) { \
+                        close(fd); \
+                        return "dup2 failed (to revert stdout)."; \
+                } \
+        } while (0)
 
 /** For minunit. */
 int tests_run = 0;
@@ -34,13 +70,15 @@ static char *minunit_tests(void);
 static char *test_files_eq(void);
 /** Tests for uc_init (just that it never fails before running more tests). */
 static char *test_uc_init(void);
+/** Tests for uc_check and uc_report_basic. */
+static char *test_uc_check_and_uc_report_basic(void);
 
 int main(void) {
         char *minunit_result;
 
         minunit_result = minunit_tests();
-        if (minunit_result == NULL) puts("minunit tests passed.");
-        else printf("minunit tests failed: %s\n", minunit_result);
+        if (minunit_result == NULL) fputs("minunit tests passed.", stderr);
+        else fprintf(stderr, "minunit tests failed: %s\n", minunit_result);
 
         return EXIT_SUCCESS;
 }
@@ -76,6 +114,7 @@ static bool files_eq(char *path_a, char *path_b) {
 static char *minunit_tests(void) {
         mu_run_test(test_files_eq);
         mu_run_test(test_uc_init);
+        mu_run_test(test_uc_check_and_uc_report_basic);
 
         return NULL;
 }
@@ -115,6 +154,72 @@ static char *test_uc_init(void) {
         suite_b = uc_init(UC_OPT_NONE, "Name", NULL);
         mu_assert("Check suite_b was allocated", suite_b != NULL);
         uc_free(suite_b);
+
+        return NULL;
+}
+
+static char *test_uc_check_and_uc_report_basic(void) {
+        uc_suite suite;
+        char tmp_file_path[strlen(TMP_FILE_TEMPLATE) + 1];
+        int tmp_file_fd, orig_stdout;
+
+        strncpy(tmp_file_path, TMP_FILE_TEMPLATE,
+                strlen(TMP_FILE_TEMPLATE) + 1);
+
+        orig_stdout = dup(STDOUT_FILENO);
+        tmp_file_fd = mkstemp(tmp_file_path);
+        if (tmp_file_fd == -1) return "Failed to create temporary file.";
+        /* Since the STDOUT_REDIR_SET_UP opens. */
+        if (close(tmp_file_fd) == -1) {
+                return "Failed to close temporary file.";
+        };
+
+        STDOUT_REDIR_SET_UP(tmp_file_path, tmp_file_fd);
+        suite = uc_init(UC_OPT_NONE, "Suite 1", "Suite 1's comment.");
+        if (suite == NULL) {
+                close(tmp_file_fd);
+                return "uc_init failed.";
+        }
+        uc_check(suite, true, "True.");
+        uc_check(suite, false, "False.");
+        uc_report_basic(suite);
+        uc_free(suite);
+        STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);
+
+        mu_assert("Check basic report a.",
+                  files_eq(tmp_file_path, TEST_DIR "uc_report_basic_a"));
+
+        STDOUT_REDIR_SET_UP(tmp_file_path, tmp_file_fd);
+        suite = uc_init(UC_OPT_NONE, "Second suite", NULL);
+        if (suite == NULL) {
+                close(tmp_file_fd);
+                return "uc_init failed.";
+        }
+        uc_check(suite, true, "True!");
+        uc_report_basic(suite);
+        uc_free(suite);
+        STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);
+
+        mu_assert("Check basic report b.",
+                  files_eq(tmp_file_path, TEST_DIR "uc_report_basic_b"));
+
+        STDOUT_REDIR_SET_UP(tmp_file_path, tmp_file_fd);
+        suite = uc_init(UC_OPT_NONE, NULL, NULL);
+        if (suite == NULL) {
+                close(tmp_file_fd);
+                return "uc_init failed.";
+        }
+        for (int i = 0; i < 5; ++i) uc_check(suite, false, "False!");
+        uc_report_basic(suite);
+        uc_free(suite);
+        STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);
+
+        mu_assert("Check basic report c.",
+                  files_eq(tmp_file_path, TEST_DIR "uc_report_basic_c"));
+
+        if (remove(tmp_file_path) == -1) {
+                return "Could not remove temporary file";
+        }
 
         return NULL;
 }
