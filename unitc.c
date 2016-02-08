@@ -89,6 +89,7 @@ void uc_free(uc_suite suite) {
 }
 
 void uc_check(uc_suite suite, const bool cond, const char *comment) {
+        if (suite == NULL) return;
         struct check *check;
 
         check = malloc(sizeof(struct check));
@@ -117,6 +118,7 @@ void uc_check(uc_suite suite, const bool cond, const char *comment) {
 }
 
 void uc_report_basic(uc_suite suite) {
+        if (suite == NULL) return;
         unsigned int successes, total;
 
         successes = total = 0;
