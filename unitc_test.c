@@ -27,7 +27,7 @@
   */
 #define STDOUT_REDIR_SET_UP(path, fd) \
         do { \
-                if ((fd = open(path, O_WRONLY)) == -1) { \
+                if ((fd = open(path, O_WRONLY | O_TRUNC)) == -1) { \
                         return "Failed to open temporary file."; \
                 }; \
                 fflush(stdout); \
