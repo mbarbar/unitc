@@ -62,3 +62,16 @@ void uc_check(uc_suite suite, const bool cond, const char *comment);
   */
 void uc_report_basic(uc_suite suite);
 
+/** Outputs a report showing suite's title, comment, the number of successful
+  * checks vs. failed checks as a fraction, and all comments of failed checks.
+  * Outputs nothing if suite is NULL.
+  * Example:
+  * Suite name
+  * Some information about the suite.
+  * Successful checks: 5/20.
+  * Check failed: A comment
+  * Check failed: Another comment.
+  *
+  * @param suite Test suite to generate report from.
+  */
+void uc_report_standard(uc_suite suite);

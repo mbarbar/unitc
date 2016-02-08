@@ -142,3 +142,6 @@ void uc_report_basic(uc_suite suite) {
         printf("Successful checks: %d/%d.\n", successes, total);
 }
 
+void uc_report_standard(uc_suite suite) {
+        if (suite == NULL) return;
+}
