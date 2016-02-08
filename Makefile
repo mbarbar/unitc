@@ -1,7 +1,7 @@
 # unitc Makefile
 
 CC     = gcc
-CFLAGS = -std=c99 -Wall -Werror -g
+CFLAGS = -std=c99 -Wall -Werror -g `pkg-config --cflags --libs glib-2.0`
 
 DOC_CONF = doxygen_conf
 
