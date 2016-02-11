@@ -144,4 +144,35 @@ void uc_report_basic(uc_suite suite) {
 
 void uc_report_standard(uc_suite suite) {
         if (suite == NULL) return;
+        unsigned int successes, total;
+        /* Comments of failed checks. Includes NULL (i.e. no comment). */
+        GList *to_print;
+
+        successes = total = 0;
+        to_print = NULL;
+
+        puts(suite->name != NULL ? suite->name : DEFAULT_SUITE_NAME);
+        if (suite->comment != NULL) puts(suite->comment);
+
+        /* Traverse backwards to maintain order checks were done. */
+        for (GList *curr = g_list_last(suite->checks); curr != NULL;
+             curr = curr->prev) {
+                struct check *curr_data = curr->data;
+
+                if (curr_data->result) ++successes;
+                else to_print = g_list_prepend(to_print, curr_data->comment);
+
+                ++total;
+        }
+
+        printf("Successful checks: %d/%d.\n", successes, total);
+
+        /* Order matters again. */
+        for (GList *curr = g_list_last(to_print); curr != NULL;
+             curr = curr->prev) {
+                printf("Check failed: %s\n",
+                       curr->data != NULL ? (char *)curr->data : "");
+        }
+
+        g_list_free(to_print);
 }
