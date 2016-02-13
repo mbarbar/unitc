@@ -29,6 +29,9 @@ struct uc_suite {
         unsigned int num_checks;
 };
 
+/** Outputs "Succesful checks: x/y." appropriate to suite. */
+static void output_checks_fraction(uc_suite suite);
+
 uc_suite uc_init(const uint_least8_t options, const char *name,
                  const char *comment) {
         uc_suite suite = malloc(sizeof(struct uc_suite));
@@ -139,8 +142,7 @@ void uc_report_basic(uc_suite suite) {
         puts(suite->name != NULL ? suite->name : DEFAULT_SUITE_NAME);
         if (suite->comment != NULL) puts(suite->comment);
 
-        printf("Successful checks: %d/%d.\n", suite->num_successes,
-               suite->num_checks);
+        output_checks_fraction(suite);
 }
 
 void uc_report_standard(uc_suite suite) {
@@ -149,8 +151,7 @@ void uc_report_standard(uc_suite suite) {
         puts(suite->name != NULL ? suite->name : DEFAULT_SUITE_NAME);
         if (suite->comment != NULL) puts(suite->comment);
 
-        printf("Successful checks: %d/%d.\n", suite->num_successes,
-               suite->num_checks);
+        output_checks_fraction(suite);
 
         /* Traverse backwards to maintain order checks were done. */
         for (GList *curr = g_list_last(suite->checks); curr != NULL;
@@ -171,4 +172,10 @@ void uc_report_standard(uc_suite suite) {
                 if (comment != NULL) printf(str_fmt, comment);
                 else printf(str_fmt, curr_data->check_num);
         }
+}
+
+void output_checks_fraction(uc_suite suite) {
+        if (suite == NULL) return;
+        printf("Successful checks: %d/%d.\n", suite->num_successes,
+               suite->num_checks);
 }
