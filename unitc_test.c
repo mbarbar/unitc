@@ -284,7 +284,7 @@ static char *test_uc_report_standard(void) {
         uc_check(suite, false, "2nd failure");
         uc_check(suite, false, "3rd failure");
         uc_check(suite, true, "True.");
-        uc_check(suite, false, "4th failure");
+        uc_check(suite, false, NULL);
         uc_report_standard(suite);
         uc_free(suite);
         STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);

@@ -16,6 +16,7 @@ static const char *DEFAULT_SUITE_NAME = "Main";
 struct check {
         bool result;
         char *comment;
+        unsigned int check_num;
 };
 
 struct uc_suite {
@@ -24,6 +25,8 @@ struct uc_suite {
         uint_least8_t options;
         /* List of struct checks in REVERSE order. */
         GList *checks;
+        unsigned int num_successes;
+        unsigned int num_checks;
 };
 
 uc_suite uc_init(const uint_least8_t options, const char *name,
@@ -33,6 +36,8 @@ uc_suite uc_init(const uint_least8_t options, const char *name,
 
         suite->options = options;
         suite->checks = NULL;
+        suite->num_successes = 0;
+        suite->num_checks = 0;
 
         if (name != NULL) {
                 suite->name = malloc(sizeof(char) * (strlen(name) + 1));
@@ -99,7 +104,11 @@ void uc_check(uc_suite suite, const bool cond, const char *comment) {
                 return;
         }
 
+        if (cond) ++suite->num_successes;
+        ++suite->num_checks;
+
         check->result = cond;
+        check->check_num = suite->num_checks;
 
         if (comment != NULL) {
                 check->comment = malloc(sizeof(char) * (strlen(comment) + 1));
@@ -126,60 +135,40 @@ void uc_run_tests(uc_suite suite) {
 
 void uc_report_basic(uc_suite suite) {
         if (suite == NULL) return;
-        unsigned int successes, total;
-
-        successes = total = 0;
 
         puts(suite->name != NULL ? suite->name : DEFAULT_SUITE_NAME);
         if (suite->comment != NULL) puts(suite->comment);
 
-        if (suite->checks != NULL) {
-                /* Order doesn't matter. */
-                GList *curr = g_list_first(suite->checks);
-
-                while (curr != NULL) {
-                        struct check *curr_data = curr->data;
-                        if (curr_data->result) ++successes;
-                        ++total;
-
-                        curr = curr->next;
-                }
-        }
-
-        printf("Successful checks: %d/%d.\n", successes, total);
+        printf("Successful checks: %d/%d.\n", suite->num_successes,
+               suite->num_checks);
 }
 
 void uc_report_standard(uc_suite suite) {
         if (suite == NULL) return;
-        unsigned int successes, total;
-        /* Comments of failed checks. Includes NULL (i.e. no comment). */
-        GList *to_print;
-
-        successes = total = 0;
-        to_print = NULL;
 
         puts(suite->name != NULL ? suite->name : DEFAULT_SUITE_NAME);
         if (suite->comment != NULL) puts(suite->comment);
 
+        printf("Successful checks: %d/%d.\n", suite->num_successes,
+               suite->num_checks);
+
         /* Traverse backwards to maintain order checks were done. */
         for (GList *curr = g_list_last(suite->checks); curr != NULL;
              curr = curr->prev) {
-                struct check *curr_data = curr->data;
+                struct check *curr_data;
+                char *comment, *str_fmt;
 
-                if (curr_data->result) ++successes;
-                else to_print = g_list_prepend(to_print, curr_data->comment);
+                curr_data = curr->data;
 
-                ++total;
+                /* Nothing to print. */
+                if (curr_data->result) continue;
+
+                comment = (char *)curr_data->comment;
+
+                str_fmt = comment != NULL ? "Check failed: %s\n"
+                                            : "Check failed: Check #%u.\n";
+
+                if (comment != NULL) printf(str_fmt, comment);
+                else printf(str_fmt, curr_data->check_num);
         }
-
-        printf("Successful checks: %d/%d.\n", successes, total);
-
-        /* Order matters again. */
-        for (GList *curr = g_list_last(to_print); curr != NULL;
-             curr = curr->prev) {
-                printf("Check failed: %s\n",
-                       curr->data != NULL ? (char *)curr->data : "");
-        }
-
-        g_list_free(to_print);
 }

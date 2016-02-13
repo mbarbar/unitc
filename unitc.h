@@ -87,12 +87,13 @@ void uc_report_basic(uc_suite suite);
 /** Outputs a report showing suite's title, comment, the number of successful
   * checks vs. failed checks as a fraction, and all comments of failed checks.
   * Outputs nothing if suite is NULL.
-  * Example:
+  * Example (the 'Check #8.' is auto generated when no comment is provided):
   * Suite name
   * Some information about the suite.
-  * Successful checks: 5/20.
+  * Successful checks: 17/20.
   * Check failed: A comment
   * Check failed: Another comment.
+  * Check failed: Check #8.
   *
   * @param suite Test suite to generate report from.
   */
