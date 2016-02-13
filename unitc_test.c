@@ -25,29 +25,29 @@
 /** Set up for redirecting stdout to path (opens path to fd). Returns on
   * failure. (For minunit).
   */
-#define STDOUT_REDIR_SET_UP(path, fd) \
-        do { \
-                if ((fd = open(path, O_WRONLY | O_TRUNC)) == -1) { \
-                        return "Failed to open temporary file."; \
-                }; \
-                fflush(stdout); \
-                if (dup2(fd, STDOUT_FILENO) == -1) { \
-                        close(fd); \
-                        return "dup2 failed."; \
-                } \
+#define STDOUT_REDIR_SET_UP(path, fd)\
+        do {\
+                if ((fd = open(path, O_WRONLY | O_TRUNC)) == -1) {\
+                        return "Failed to open temporary file.";\
+                };\
+                fflush(stdout);\
+                if (dup2(fd, STDOUT_FILENO) == -1) {\
+                        close(fd);\
+                        return "dup2 failed.";\
+                }\
         } while (0)
 
 /** Closes fd and redirects stdout to orig_stdout. */
-#define STDOUT_REDIR_TEAR_DOWN(fd, orig_stdout) \
-        do { \
-                if (close(fd) == -1) { \
-                        return "Failed to close temporary file."; \
-                }; \
-                fflush(stdout); \
-                if (dup2(orig_stdout, STDOUT_FILENO) == -1) { \
-                        close(fd); \
-                        return "dup2 failed (to revert stdout)."; \
-                } \
+#define STDOUT_REDIR_TEAR_DOWN(fd, orig_stdout)\
+        do {\
+                if (close(fd) == -1) {\
+                        return "Failed to close temporary file.";\
+                };\
+                fflush(stdout);\
+                if (dup2(orig_stdout, STDOUT_FILENO) == -1) {\
+                        close(fd);\
+                        return "dup2 failed (to revert stdout).";\
+                }\
         } while (0)
 
 /** For minunit. */

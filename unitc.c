@@ -10,6 +10,20 @@
 
 #include "unitc.h"
 
+#define ALLOC_STRING(src, dst, exec_on_failure)\
+        do {\
+                if ((src) != NULL) {\
+                        (dst) = malloc(sizeof(char) * (strlen(src) + 1));\
+                        if ((dst) == NULL) {\
+                                { exec_on_failure }\
+                        }\
+        \
+                        strcpy(dst, src);\
+                } else {\
+                        (dst) = NULL;\
+                }\
+        } while (0)
+
 static const char *DEFAULT_SUITE_NAME = "Main";
 
 /** Representation of a call to uc_check. */
@@ -42,29 +56,8 @@ uc_suite uc_init(const uint_least8_t options, const char *name,
         suite->num_successes = 0;
         suite->num_checks = 0;
 
-        if (name != NULL) {
-                suite->name = malloc(sizeof(char) * (strlen(name) + 1));
-                if (suite->name == NULL) {
-                        uc_free(suite);
-                        return NULL;
-                }
-
-                strcpy(suite->name, name);
-        } else {
-                suite->name = NULL;
-        }
-
-        if (comment != NULL) {
-                suite->comment = malloc(sizeof(char) * (strlen(comment) + 1));
-                if (suite->comment == NULL) {
-                        uc_free(suite);
-                        return NULL;
-                }
-
-                strcpy(suite->comment, comment);
-        } else {
-                suite->comment = NULL;
-        }
+        ALLOC_STRING(name, suite->name, { uc_free(suite); return NULL; });
+        ALLOC_STRING(comment, suite->comment, { uc_free(suite); return NULL; });
 
         return suite;
 }
@@ -113,18 +106,10 @@ void uc_check(uc_suite suite, const bool cond, const char *comment) {
         check->result = cond;
         check->check_num = suite->num_checks;
 
-        if (comment != NULL) {
-                check->comment = malloc(sizeof(char) * (strlen(comment) + 1));
-                if (check->comment == NULL) {
-                        fprintf(stderr,
-                                "uc_check: failure to save comment: %s\n",
-                                comment);
-                } else {
-                        strcpy(check->comment, comment);
-                }
-        } else {
-                check->comment = NULL;
-        }
+        ALLOC_STRING(comment, check->comment,
+                     { fprintf(stderr,
+                               "uc_check: failure to save comment: %s\n",
+                               comment); });
 
         suite->checks = g_list_prepend(suite->checks, check);
 }
