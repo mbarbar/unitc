@@ -49,6 +49,28 @@ void uc_free(uc_suite suite);
   */
 void uc_check(uc_suite suite, const bool cond, const char *comment);
 
+/** Add a test to suite to be executed when run_test is called on the same
+  * suite.
+  *
+  * @param suite   Test suite to add test to.
+  * @param test    Test to execute. A test is a collection of uc_checks.
+  *                test takes in a uc_suite which is the instance used in
+  *                calling uc_check within test. suite will be passed to it.
+  * @param name    Name of the test - to appear in reports. Defaults to
+  *                "Test #" where # depends on it's position in the queue if
+  *                NULL.
+  * @param comment A description of the test - to appear in reports. Can be
+  *                omitted by passing NULL.
+  */
+void uc_add_test(uc_suite suite, const void (*test)(uc_suite suite),
+                 const char *name, const char *comment);
+
+/** Run all tests added by uc_add_test (in order they were added in).
+  *
+  * @param suite Test suite to run tests for.
+  */
+void uc_run_tests(uc_suite suite);
+
 /** Outputs a report showing suite's title, comment, and the number of
   * successful checks vs. failed checks as a fraction. Outputs nothing if
   * suite is NULL.
