@@ -1,0 +1,15 @@
+Suite!
+Comment!
+Total successful checks: 1/4.
+    Successful checks: 1/1.
+
+    Test!
+    Test comment!
+        Successful checks: 0/2.
+        Check failed: Failure!
+        Check failed: Failure!!
+
+    Another test!
+    Another test comment!
+        Successful checks: 0/1.
+        Check failed: Hmm...

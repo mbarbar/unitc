@@ -1,0 +1,13 @@
+Main
+Total successful checks: 0/3.
+    Successful checks: 0/1.
+    Check #1.
+
+    A test...
+    This is a test...
+        Successful checks: 0/1.
+        Check failed: Check #1.
+
+    Test #2
+        Successful checks: 0/1.
+        Check failed; Check #1.
