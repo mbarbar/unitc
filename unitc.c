@@ -44,7 +44,9 @@ struct uc_suite {
 };
 
 /** Outputs "Succesful checks: x/y." appropriate to suite. */
-static void output_checks_fraction(uc_suite suite);
+static void output_checks_fraction(uc_suite);
+
+static void struct_check_free(void *);
 
 uc_suite uc_init(const uint_least8_t options, const char *name,
                  const char *comment) {
@@ -67,24 +69,7 @@ void uc_free(uc_suite suite) {
         if (suite->name != NULL) free(suite->name);
         if (suite->comment != NULL) free(suite->comment);
 
-        if (suite->checks != NULL) {
-                GList *curr, *to_free;
-                curr = g_list_first(suite->checks);
-
-                while (curr != NULL) {
-                        struct check *curr_data = curr->data;
-
-                        if (curr_data->comment != NULL) {
-                                free(curr_data->comment);
-                        }
-
-                        to_free = curr->data;
-                        curr = curr->next;
-                        free(to_free);
-                }
-
-                g_list_free(suite->checks);
-        }
+        g_list_free_full(suite->checks, &struct_check_free);
 
         free(suite);
 }
@@ -163,4 +148,14 @@ void output_checks_fraction(uc_suite suite) {
         if (suite == NULL) return;
         printf("Successful checks: %d/%d.\n", suite->num_successes,
                suite->num_checks);
+}
+
+void struct_check_free(void *data) {
+        struct check *check = data;
+
+        if (check->comment != NULL) {
+                free(check->comment);
+        }
+
+        free(check);
 }
