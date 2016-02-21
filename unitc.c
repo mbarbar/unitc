@@ -99,7 +99,7 @@ void uc_check(uc_suite suite, const bool cond, const char *comment) {
         suite->checks = g_list_prepend(suite->checks, check);
 }
 
-void uc_add_test(uc_suite suite, const void (*test)(uc_suite suite),
+void uc_add_test(uc_suite suite, void (*test)(uc_suite suite),
                  const char *name, const char *comment) {
 }
 

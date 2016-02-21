@@ -66,14 +66,12 @@ static bool files_eq(char *path_a, char *path_b);
 /** List of 'mu_run_test's. */
 static char *minunit_tests(void);
 
-/** Tests for function files_eq. */
 static char *test_files_eq(void);
-/** Tests for uc_init (just that it never fails before running more tests). */
 static char *test_uc_init(void);
-/** Tests for uc_check and uc_report_basic. */
-static char *test_uc_check_and_uc_report_basic(void);
-/** Tests for and uc_report_standard. */
+static char *test_uc_report_basic(void);
+static char *test_uc_report_basic_with_tests(void);
 static char *test_uc_report_standard(void);
+static char *test_uc_report_standard_with_tests(void);
 
 int main(void) {
         char *minunit_result;
@@ -116,8 +114,10 @@ static bool files_eq(char *path_a, char *path_b) {
 static char *minunit_tests(void) {
         mu_run_test(test_files_eq);
         mu_run_test(test_uc_init);
-        mu_run_test(test_uc_check_and_uc_report_basic);
+        mu_run_test(test_uc_report_basic);
+        mu_run_test(test_uc_report_basic_with_tests);
         mu_run_test(test_uc_report_standard);
+        mu_run_test(test_uc_report_standard_with_tests);
 
         return NULL;
 }
@@ -161,7 +161,7 @@ static char *test_uc_init(void) {
         return NULL;
 }
 
-static char *test_uc_check_and_uc_report_basic(void) {
+static char *test_uc_report_basic(void) {
         uc_suite suite;
         char tmp_file_path[strlen(TMP_FILE_TEMPLATE) + 1];
         int tmp_file_fd, orig_stdout;
@@ -219,6 +219,86 @@ static char *test_uc_check_and_uc_report_basic(void) {
 
         mu_assert("Check basic report c.",
                   files_eq(tmp_file_path, TEST_DIR "uc_report_basic_c"));
+
+        if (remove(tmp_file_path) == -1) {
+                return "Could not remove temporary file";
+        }
+
+        return NULL;
+}
+
+void basic_d_test_1(uc_suite suite) {
+        uc_check(suite, true, NULL);
+        uc_check(suite, true, NULL);
+        uc_check(suite, true, NULL);
+        uc_check(suite, true, "...");
+        uc_check(suite, false, "---");
+}
+
+void basic_d_test_2(uc_suite suite) {
+        uc_check(suite, false, NULL);
+}
+
+void basic_e_test_1(uc_suite suite) {
+        uc_check(suite, true, NULL);
+        uc_check(suite, true, "True.");
+}
+
+void basic_e_test_2(uc_suite suite) {
+        uc_check(suite, false, NULL);
+}
+
+char *test_uc_report_basic_with_tests(void) {
+        uc_suite suite;
+        char tmp_file_path[strlen(TMP_FILE_TEMPLATE) + 1];
+        int tmp_file_fd, orig_stdout;
+
+        strncpy(tmp_file_path, TMP_FILE_TEMPLATE,
+                strlen(TMP_FILE_TEMPLATE) + 1);
+
+        orig_stdout = dup(STDOUT_FILENO);
+        tmp_file_fd = mkstemp(tmp_file_path);
+        if (tmp_file_fd == -1) return "Failed to create temporary file.";
+        /* Since the STDOUT_REDIR_SET_UP opens. */
+        if (close(tmp_file_fd) == -1) {
+                return "Failed to close temporary file.";
+        };
+
+        STDOUT_REDIR_SET_UP(tmp_file_path, tmp_file_fd);
+        suite = uc_init(UC_OPT_NONE, "A suite", NULL);
+        if (suite == NULL) {
+                close(tmp_file_fd);
+                return "uc_init failed.";
+        }
+        uc_add_test(suite, &basic_d_test_1, NULL, NULL);
+        uc_add_test(suite, &basic_d_test_2, "Test name", "A comment");
+        uc_run_tests(suite);
+        uc_report_basic(suite);
+        uc_free(suite);
+        STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);
+
+        mu_assert("Check basic report d.",
+                  files_eq(tmp_file_path, TEST_DIR "uc_report_basic_d"));
+
+        STDOUT_REDIR_SET_UP(tmp_file_path, tmp_file_fd);
+        suite = uc_init(UC_OPT_NONE, NULL, "Comment about the suite.");
+        if (suite == NULL) {
+                close(tmp_file_fd);
+                return "uc_init failed.";
+        }
+        uc_check(suite, true, NULL);
+        uc_check(suite, false, NULL);
+        uc_add_test(suite, basic_e_test_1, "1st test", NULL);
+        uc_add_test(suite, basic_e_test_2, "2nd test", "A comment...");
+        uc_run_tests(suite);
+        uc_check(suite, false, NULL);
+        uc_check(suite, true, NULL);
+        uc_report_basic(suite);
+        uc_free(suite);
+        STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);
+
+        mu_assert("Check basic report e.",
+                  files_eq(tmp_file_path, TEST_DIR "uc_report_basic_e"));
 
         if (remove(tmp_file_path) == -1) {
                 return "Could not remove temporary file";
@@ -299,3 +379,80 @@ static char *test_uc_report_standard(void) {
         return NULL;
 
 }
+
+void standard_d_test_1(uc_suite suite) {
+        uc_check(suite, false, NULL);
+}
+
+void standard_d_test_2(uc_suite suite) {
+        uc_check(suite, false, NULL);
+}
+
+void standard_e_test_1(uc_suite suite) {
+        uc_check(suite, false, "Failure!");
+        uc_check(suite, false, "Failure!!");
+}
+
+void standard_e_test_2(uc_suite suite) {
+        uc_check(suite, false, "Hmm...");
+}
+
+static char *test_uc_report_standard_with_tests(void) {
+        uc_suite suite;
+        char tmp_file_path[strlen(TMP_FILE_TEMPLATE) + 1];
+        int tmp_file_fd, orig_stdout;
+
+        strncpy(tmp_file_path, TMP_FILE_TEMPLATE,
+                strlen(TMP_FILE_TEMPLATE) + 1);
+
+        orig_stdout = dup(STDOUT_FILENO);
+        tmp_file_fd = mkstemp(tmp_file_path);
+        if (tmp_file_fd == -1) return "Failed to create temporary file.";
+        /* Since the STDOUT_REDIR_SET_UP opens. */
+        if (close(tmp_file_fd) == -1) {
+                return "Failed to close temporary file.";
+        };
+
+        STDOUT_REDIR_SET_UP(tmp_file_path, tmp_file_fd);
+        suite = uc_init(UC_OPT_NONE, NULL, NULL);
+        if (suite == NULL) {
+                close(tmp_file_fd);
+                return "uc_init failed.";
+        }
+        uc_add_test(suite, &standard_d_test_1, "A test...",
+                    "This is a test...");
+        uc_check(suite, false, NULL);
+        uc_add_test(suite, &standard_d_test_2, NULL, NULL);
+        uc_run_tests(suite);
+        uc_report_standard(suite);
+        uc_free(suite);
+        STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);
+
+        mu_assert("Check standard report d.",
+                  files_eq(tmp_file_path, TEST_DIR "uc_report_standard_d"));
+
+        STDOUT_REDIR_SET_UP(tmp_file_path, tmp_file_fd);
+        suite = uc_init(UC_OPT_NONE, "Suite!", "Comment!");
+        if (suite == NULL) {
+                close(tmp_file_fd);
+                return "uc_init failed.";
+        }
+        uc_check(suite, true, NULL);
+        uc_add_test(suite, standard_e_test_1, "Test!", "Test comment!");
+        uc_add_test(suite, standard_e_test_2, "Another test!",
+                    "Another test comment!");
+        uc_run_tests(suite);
+        uc_report_standard(suite);
+        uc_free(suite);
+        STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);
+
+        mu_assert("Check standard report e.",
+                  files_eq(tmp_file_path, TEST_DIR "uc_report_standard_e"));
+
+        if (remove(tmp_file_path) == -1) {
+                return "Could not remove temporary file";
+        }
+
+        return NULL;
+}
+
