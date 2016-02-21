@@ -43,7 +43,7 @@ struct uc_suite {
         unsigned int num_checks;
 };
 
-/** Outputs "Succesful checks: x/y." appropriate to suite. */
+/** Outputs "Successful checks: x/y." appropriate to suite. */
 static void output_checks_fraction(uc_suite);
 
 static void struct_check_free(void *);
