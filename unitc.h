@@ -62,7 +62,7 @@ void uc_check(uc_suite suite, const bool cond, const char *comment);
   * @param comment A description of the test - to appear in reports. Can be
   *                omitted by passing NULL.
   */
-void uc_add_test(uc_suite suite, void (*test)(uc_suite suite),
+void uc_add_test(uc_suite suite, void (*test_func)(uc_suite suite),
                  const char *name, const char *comment);
 
 /** Run all tests added by uc_add_test (in order they were added in).
