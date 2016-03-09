@@ -71,6 +71,17 @@ void uc_add_test(uc_suite suite, void (*test_func)(uc_suite suite),
   */
 void uc_run_tests(uc_suite suite);
 
+/** Check if all tests run for suite have passed (i.e. all checks
+  * were successful).
+  *
+  * @param suite Test suite to check.
+  *
+  * @return true if all tests that have been run for suite have passed
+  *         (this includes "dangling" checks), false otherwise. Returns
+  *         true if no tests or checks have been run.
+  */
+bool uc_all_tests_passed(uc_suite suite);
+
 /** Outputs a report showing suite's title, comment, and the number of
   * successful checks vs. failed checks as a fraction. Outputs nothing if
   * suite is NULL.

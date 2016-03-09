@@ -68,6 +68,7 @@ static char *minunit_tests(void);
 
 static char *test_files_eq(void);
 static char *test_uc_init(void);
+static char *test_uc_all_tests_passed(void);
 static char *test_uc_report_basic(void);
 static char *test_uc_report_basic_with_tests(void);
 static char *test_uc_report_standard(void);
@@ -114,6 +115,7 @@ static bool files_eq(char *path_a, char *path_b) {
 static char *minunit_tests(void) {
         mu_run_test(test_files_eq);
         mu_run_test(test_uc_init);
+        mu_run_test(test_uc_all_tests_passed);
         mu_run_test(test_uc_report_basic);
         mu_run_test(test_uc_report_basic_with_tests);
         mu_run_test(test_uc_report_standard);
@@ -157,6 +159,56 @@ static char *test_uc_init(void) {
         suite_b = uc_init(UC_OPT_NONE, "Name", NULL);
         mu_assert("Check suite_b was allocated", suite_b != NULL);
         uc_free(suite_b);
+
+        return NULL;
+}
+
+static void succ_test(uc_suite suite) {
+        uc_check(suite, true, NULL);
+        uc_check(suite, true, NULL);
+        uc_check(suite, true, NULL);
+}
+
+static void unsucc_test(uc_suite suite) {
+        uc_check(suite, true, NULL);
+        uc_check(suite, false, NULL);
+        uc_check(suite, true, NULL);
+}
+
+static char *test_uc_all_tests_passed(void) {
+        uc_suite suite;
+
+        suite = uc_init(UC_OPT_NONE, "Suite name", NULL);
+        if (suite == NULL) return "uc_init failed.";
+        mu_assert("uc_all_tests_passed: no tests or checks.",
+                  uc_all_tests_passed(suite));
+        uc_check(suite, true, NULL);
+        mu_assert("uc_all_tests_passed: Successful dangling check only.",
+                  uc_all_tests_passed(suite));
+        uc_check(suite, false, NULL);
+        mu_assert("uc_all_tests_passed: Un/successful dangling checks.",
+                  !uc_all_tests_passed(suite));
+        uc_check(suite, false, NULL);
+        uc_check(suite, true, NULL);
+        mu_assert("uc_all_tests_passed: >1 Un/successful dangling checks.",
+                  !uc_all_tests_passed(suite));
+        uc_add_test(suite, &succ_test, NULL, NULL);
+        uc_run_tests(suite);
+        mu_assert("uc_all_tests_passed: Dangling checks and successful test.",
+                  !uc_all_tests_passed(suite));
+        uc_free(suite);
+
+        suite = uc_init(UC_OPT_NONE, NULL, NULL);
+        if (suite == NULL) return "uc_init failed.";
+        uc_add_test(suite, &succ_test, "A", "a");
+        uc_add_test(suite, &unsucc_test, "B", "b");
+        uc_run_tests(suite);
+        mu_assert("uc_all_tests_passed: Un/successful tests.",
+                  !uc_all_tests_passed(suite));
+        uc_check(suite, true, NULL);
+        mu_assert("uc_all_tests_passed: Un/successful tests + dangling check.",
+                  !uc_all_tests_passed(suite));
+        uc_free(suite);
 
         return NULL;
 }
