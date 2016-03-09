@@ -1,5 +1,5 @@
-/** \file unitc_test.c
-  * \brief Tests for the unitc library.
+/** unitc_test.c
+  * Tests for the unitc library.
   */
 
 #define _XOPEN_SOURCE 500
