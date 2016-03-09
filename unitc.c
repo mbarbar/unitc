@@ -210,7 +210,14 @@ void uc_run_tests(uc_suite suite) {
 }
 
 bool uc_all_tests_passed(uc_suite suite) {
-        return false;
+        if (suite == NULL) return false;
+
+        for (GList *curr = suite->tests; curr != NULL; curr = curr->next) {
+                struct test *test = curr->data;
+                if (test->num_succ != test->num_checks) return false;
+        }
+
+        return true;
 }
 
 void uc_report_basic(uc_suite suite) {

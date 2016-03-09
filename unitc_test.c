@@ -210,6 +210,16 @@ static char *test_uc_all_tests_passed(void) {
                   !uc_all_tests_passed(suite));
         uc_free(suite);
 
+        suite = uc_init(UC_OPT_NONE, NULL, NULL);
+        if (suite == NULL) return "uc_init failed.";
+        uc_add_test(suite, &succ_test, "X", "a");
+        uc_add_test(suite, &succ_test, "Y", "b");
+        uc_add_test(suite, &succ_test, "Z", "c");
+        uc_run_tests(suite);
+        mu_assert("uc_all_tests_passed: Successful tests only.",
+                  uc_all_tests_passed(suite));
+        uc_free(suite);
+
         return NULL;
 }
 
