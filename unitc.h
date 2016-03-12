@@ -11,8 +11,8 @@
 #define UC_OPT_NONE (0) /**< No options set. */
 /**@}*/
 
-/** A uc_suite carries specified options, successes/failures, and comments of
-  * a test suite.
+/** A uc_suite carries specified options, tests, successes/failures, and
+  * comments of a test suite.
   */
 typedef struct uc_suite *uc_suite;
 
@@ -52,7 +52,7 @@ void uc_check(uc_suite suite, const bool cond, const char *comment);
 /** Add a test to suite to be executed when run_test is called on the same
   * suite.
   *
-  * @param suite     Test suite to add test to.
+  * @param suite     Test suite to add the test to.
   * @param test_func Test to execute. A test is a collection of uc_checks.
   *                  test takes in a uc_suite which is the instance used in
   *                  calling uc_check within test. suite will be passed to it.
@@ -70,6 +70,17 @@ void uc_add_test(uc_suite suite, void (*test_func)(uc_suite suite),
   * @param suite Test suite to run tests for.
   */
 void uc_run_tests(uc_suite suite);
+
+/** Check if all tests run for suite have passed (i.e. all checks
+  * were successful).
+  *
+  * @param suite Test suite to check.
+  *
+  * @return true if all tests that have been run for suite have passed
+  *         (this includes "dangling" checks), false otherwise. Returns
+  *         true if no tests or checks have been run.
+  */
+bool uc_all_tests_passed(uc_suite suite);
 
 /** Outputs a report showing suite's title, comment, and the number of
   * successful checks vs. failed checks as a fraction. Outputs nothing if
