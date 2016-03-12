@@ -10,7 +10,7 @@ HEADERS = unitc.h
 BUILD_OBJ = unitc.o
 BUILD_OUT = libunitc.so
 
-TEST_OBJ = unitc.o unitc_test.o
+TEST_OBJ = dev_uc.o unitc_test.o
 TEST_OUT = unitc_test
 
 OUTS = $(TEST_OUT) $(DOC_OUT) $(BUILD_OUT)
@@ -23,12 +23,21 @@ build:
 
 test: $(TEST_OUT)
 	./$(TEST_OUT)
+	valgrind --leak-check=full --show-leak-kinds=all -v ./$(TEST_OUT) 2>&1\
+		| tail -2
 
 doc: *.c *.h $(DOC_CONF)
 	doxygen $(DOC_CONF)
 
 $(TEST_OUT): $(TEST_OBJ)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -lunitc -o $@ $^
+
+dev_uc.o: unitc.o unitc_dev.o
+	ld -r unitc.o unitc_dev.o -o dev_uc.o; \
+	tmp_file=`mktemp`; \
+	nm --defined-only unitc.o | cut -d' ' -f3 > $$tmp_file; \
+	objcopy --localize-symbols=$$tmp_file dev_uc.o; \
+	rm -f $$tmp_file
 
 %.o: %.c $(HEADERS)
 	$(CC) $(CFLAGS) -g -c -o $@ $<

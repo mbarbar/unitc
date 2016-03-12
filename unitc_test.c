@@ -1,5 +1,5 @@
 /** unitc_test.c
-  * Tests for the unitc library.
+  * Unit tests for the unitc library.
   */
 
 #define _XOPEN_SOURCE 500
@@ -13,27 +13,24 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "unitc.h"
+#include <unitc.h>
 
-/* http://www.jera.com/techinfo/jtns/jtn002.html */
-#include "minunit.h"
+#include "unitc_dev.h"
 
 /** Location of (manually created) files containing expected output. */
 #define TEST_DIR "test_resources/"
 #define TMP_FILE_TEMPLATE TEST_DIR "XXXXXX"
 
-/** Set up for redirecting stdout to path (opens path to fd). Returns on
-  * failure. (For minunit).
-  */
+/** Set up for redirecting stdout to path (opens path to fd). */
 #define STDOUT_REDIR_SET_UP(path, fd)\
         do {\
                 if ((fd = open(path, O_WRONLY | O_TRUNC)) == -1) {\
-                        return "Failed to open temporary file.";\
+                        fputs("Failed to open temporary file.", stderr);\
                 };\
                 fflush(stdout);\
                 if (dup2(fd, STDOUT_FILENO) == -1) {\
                         close(fd);\
-                        return "dup2 failed.";\
+                        fputs("dup2 failed.", stderr);\
                 }\
         } while (0)
 
@@ -41,17 +38,14 @@
 #define STDOUT_REDIR_TEAR_DOWN(fd, orig_stdout)\
         do {\
                 if (close(fd) == -1) {\
-                        return "Failed to close temporary file.";\
+                        fputs("Failed to close temporary file.", stderr);\
                 };\
                 fflush(stdout);\
                 if (dup2(orig_stdout, STDOUT_FILENO) == -1) {\
                         close(fd);\
-                        return "dup2 failed (to revert stdout).";\
+                        fputs("dup2 failed (to revert stdout).", stderr);\
                 }\
         } while (0)
-
-/** For minunit. */
-int tests_run = 0;
 
 /** Check files at path_a and path_b are equal.
   *
@@ -63,23 +57,43 @@ int tests_run = 0;
   */
 static bool files_eq(char *path_a, char *path_b);
 
-/** List of 'mu_run_test's. */
-static char *minunit_tests(void);
+static bool test_uc_init(void);
 
-static char *test_files_eq(void);
-static char *test_uc_init(void);
-static char *test_uc_all_tests_passed(void);
-static char *test_uc_report_basic(void);
-static char *test_uc_report_basic_with_tests(void);
-static char *test_uc_report_standard(void);
-static char *test_uc_report_standard_with_tests(void);
+static void test_files_eq(uc_suite);
+static void test_uc_all_tests_passed(uc_suite);
+static void test_uc_report_basic(uc_suite);
+static void test_uc_report_basic_with_tests(uc_suite);
+static void test_uc_report_standard(uc_suite);
+static void test_uc_report_standard_with_tests(uc_suite);
 
 int main(void) {
-        char *minunit_result;
+        uc_suite main_suite;
 
-        minunit_result = minunit_tests();
-        if (minunit_result == NULL) fputs("minunit tests passed.", stderr);
-        else fprintf(stderr, "minunit tests failed: %s\n", minunit_result);
+        if (!test_uc_init()) {
+                fputs("uc_init is failing. Aborting.", stderr);
+                return EXIT_FAILURE;
+        }
+
+        main_suite = uc_init(UC_OPT_NONE, "unitc tests", NULL);
+        uc_add_test(main_suite, &test_files_eq, "files_eq tests",
+                    "This is an internal testing function.");
+        uc_add_test(main_suite, &test_uc_all_tests_passed,
+                    "uc_all_tests_passed tests", NULL);
+        uc_add_test(main_suite, &test_uc_report_basic, "uc_report_basic tests",
+                    "For suites with dangling checks only.");
+        uc_add_test(main_suite, &test_uc_report_basic_with_tests,
+                    "uc_report_basic tests",
+                    "For suites with tests.");
+        uc_add_test(main_suite, &test_uc_report_standard,
+                    "uc_report_standard tests",
+                    "For suites with dangling checks only.");
+        uc_add_test(main_suite, &test_uc_report_standard_with_tests,
+                    "uc_report_standard tests",
+                    "For suites with tests.");
+        uc_run_tests(main_suite);
+
+        uc_report_standard(main_suite);
+        uc_free(main_suite);
 
         return EXIT_SUCCESS;
 }
@@ -112,119 +126,116 @@ static bool files_eq(char *path_a, char *path_b) {
         return a_char == b_char;
 }
 
-static char *minunit_tests(void) {
-        mu_run_test(test_files_eq);
-        mu_run_test(test_uc_init);
-        mu_run_test(test_uc_all_tests_passed);
-        mu_run_test(test_uc_report_basic);
-        mu_run_test(test_uc_report_basic_with_tests);
-        mu_run_test(test_uc_report_standard);
-        mu_run_test(test_uc_report_standard_with_tests);
+static void test_files_eq(uc_suite suite) {
+        uc_check(suite, files_eq(TEST_DIR "files_eq_equal_a",
+                                 TEST_DIR "files_eq_equal_b"),
+                 "Check unique equal files are equal");
 
-        return NULL;
+        uc_check(suite, !files_eq(TEST_DIR "files_eq_diff_a",
+                                  TEST_DIR "files_eq_diff_b"),
+                 "Check unique unequal files are not equal");
+
+        uc_check(suite, files_eq(TEST_DIR "files_eq_empty_a",
+                                 TEST_DIR "files_eq_empty_b"),
+                 "Check unique empty files are equal");
+
+        uc_check(suite, files_eq(TEST_DIR "files_eq_diff_a",
+                                 TEST_DIR "files_eq_diff_a"),
+                 "Check file is equal to itself");
 }
 
-static char *test_files_eq(void) {
-        mu_assert("Check unique equal files are equal",
-                  files_eq(TEST_DIR "files_eq_equal_a",
-                           TEST_DIR "files_eq_equal_b"));
+static bool test_uc_init(void) {
+        dev_uc_suite suite_a, suite_b;
 
-        mu_assert("Check unique unequal files are not equal",
-                  !files_eq(TEST_DIR "files_eq_diff_a",
-                            TEST_DIR "files_eq_diff_b"));
-
-        mu_assert("Check unique empty files are equal",
-                  files_eq(TEST_DIR "files_eq_empty_a",
-                           TEST_DIR "files_eq_empty_b"));
-
-        mu_assert("Check file is equal to itself",
-                  files_eq(TEST_DIR "files_eq_diff_a",
-                           TEST_DIR "files_eq_diff_a"));
-
-        return NULL;
-}
-
-static char *test_uc_init(void) {
-        uc_suite suite_a, suite_b;
-
-        suite_a = uc_init(UC_OPT_NONE, NULL, NULL);
-        mu_assert("Check suite_a was allocated", suite_a != NULL);
-        uc_free(suite_a);
+        suite_a = dev_uc_init(dev_UC_OPT_NONE, NULL, NULL);
+        if (suite_a == NULL) return false;
+        dev_uc_free(suite_a);
 
         suite_a = NULL;
-        suite_a = uc_init(UC_OPT_NONE, "Main", "Test suite.");
-        mu_assert("Check suite_a was allocated again", suite_a != NULL);
-        uc_free(suite_a);
+        suite_a = dev_uc_init(dev_UC_OPT_NONE, "Main", "Test suite.");
+        if (suite_a == NULL) return false;
+        dev_uc_free(suite_a);
 
-        suite_b = uc_init(UC_OPT_NONE, "Name", NULL);
-        mu_assert("Check suite_b was allocated", suite_b != NULL);
-        uc_free(suite_b);
+        suite_b = dev_uc_init(dev_UC_OPT_NONE, "Name", NULL);
+        if (suite_b == NULL) return false;
+        dev_uc_free(suite_b);
 
-        return NULL;
+        return true;
 }
 
 static void succ_test(uc_suite suite) {
-        uc_check(suite, true, NULL);
-        uc_check(suite, true, NULL);
-        uc_check(suite, true, NULL);
+        dev_uc_check(suite, true, NULL);
+        dev_uc_check(suite, true, NULL);
+        dev_uc_check(suite, true, NULL);
 }
 
-static void unsucc_test(uc_suite suite) {
-        uc_check(suite, true, NULL);
-        uc_check(suite, false, NULL);
-        uc_check(suite, true, NULL);
+static void unsucc_test(dev_uc_suite suite) {
+        dev_uc_check(suite, true, NULL);
+        dev_uc_check(suite, false, NULL);
+        dev_uc_check(suite, true, NULL);
 }
 
-static char *test_uc_all_tests_passed(void) {
-        uc_suite suite;
+static void test_uc_all_tests_passed(uc_suite suite) {
+        dev_uc_suite sut_suite;
 
-        suite = uc_init(UC_OPT_NONE, "Suite name", NULL);
-        if (suite == NULL) return "uc_init failed.";
-        mu_assert("uc_all_tests_passed: no tests or checks.",
-                  uc_all_tests_passed(suite));
-        uc_check(suite, true, NULL);
-        mu_assert("uc_all_tests_passed: Successful dangling check only.",
-                  uc_all_tests_passed(suite));
-        uc_check(suite, false, NULL);
-        mu_assert("uc_all_tests_passed: Un/successful dangling checks.",
-                  !uc_all_tests_passed(suite));
-        uc_check(suite, false, NULL);
-        uc_check(suite, true, NULL);
-        mu_assert("uc_all_tests_passed: >1 Un/successful dangling checks.",
-                  !uc_all_tests_passed(suite));
-        uc_add_test(suite, &succ_test, NULL, NULL);
-        uc_run_tests(suite);
-        mu_assert("uc_all_tests_passed: Dangling checks and successful test.",
-                  !uc_all_tests_passed(suite));
-        uc_free(suite);
+        sut_suite = dev_uc_init(dev_UC_OPT_NONE, "Suite name", NULL);
 
-        suite = uc_init(UC_OPT_NONE, NULL, NULL);
-        if (suite == NULL) return "uc_init failed.";
-        uc_add_test(suite, &succ_test, "A", "a");
-        uc_add_test(suite, &unsucc_test, "B", "b");
-        uc_run_tests(suite);
-        mu_assert("uc_all_tests_passed: Un/successful tests.",
-                  !uc_all_tests_passed(suite));
-        uc_check(suite, true, NULL);
-        mu_assert("uc_all_tests_passed: Un/successful tests + dangling check.",
-                  !uc_all_tests_passed(suite));
-        uc_free(suite);
+        uc_check(suite, dev_uc_all_tests_passed(sut_suite),
+                 "uc_all_tests_passed: no tests or checks.");
 
-        suite = uc_init(UC_OPT_NONE, NULL, NULL);
-        if (suite == NULL) return "uc_init failed.";
-        uc_add_test(suite, &succ_test, "X", "a");
-        uc_add_test(suite, &succ_test, "Y", "b");
-        uc_add_test(suite, &succ_test, "Z", "c");
-        uc_run_tests(suite);
-        mu_assert("uc_all_tests_passed: Successful tests only.",
-                  uc_all_tests_passed(suite));
-        uc_free(suite);
+        dev_uc_check(sut_suite, true, NULL);
 
-        return NULL;
+        uc_check(suite, dev_uc_all_tests_passed(sut_suite),
+                 "uc_all_tests_passed: Successful dangling check only.");
+
+        dev_uc_check(sut_suite, false, NULL);
+
+        uc_check(suite, !dev_uc_all_tests_passed(sut_suite),
+                 "uc_all_tests_passed: Un/successful dangling checks.");
+
+        dev_uc_check(sut_suite, false, NULL);
+        dev_uc_check(sut_suite, true, NULL);
+
+        uc_check(suite, !dev_uc_all_tests_passed(sut_suite),
+                 "uc_all_tests_passed: >1 Un/successful dangling checks.");
+
+        dev_uc_add_test(sut_suite, &succ_test, NULL, NULL);
+        dev_uc_run_tests(sut_suite);
+
+        uc_check(suite, !dev_uc_all_tests_passed(sut_suite),
+                 "uc_all_tests_passed: Dangling checks and successful test.");
+
+        dev_uc_free(sut_suite);
+
+        sut_suite = dev_uc_init(dev_UC_OPT_NONE, NULL, NULL);
+        dev_uc_add_test(sut_suite, &succ_test, "A", "a");
+        dev_uc_add_test(sut_suite, &unsucc_test, "B", "b");
+        dev_uc_run_tests(sut_suite);
+
+        uc_check(suite, !dev_uc_all_tests_passed(sut_suite),
+                 "uc_all_tests_passed: Un/successful tests.");
+
+        dev_uc_check(sut_suite, true, NULL);
+
+        uc_check(suite, !dev_uc_all_tests_passed(sut_suite),
+                 "uc_all_tests_passed: Un/successful tests + dangling check.");
+
+        dev_uc_free(sut_suite);
+
+        sut_suite = dev_uc_init(dev_UC_OPT_NONE, NULL, NULL);
+        dev_uc_add_test(sut_suite, &succ_test, "X", "a");
+        dev_uc_add_test(sut_suite, &succ_test, "Y", "b");
+        dev_uc_add_test(sut_suite, &succ_test, "Z", "c");
+        dev_uc_run_tests(sut_suite);
+
+        uc_check(suite, dev_uc_all_tests_passed(sut_suite),
+                 "uc_all_tests_passed: Successful tests only.");
+
+        dev_uc_free(sut_suite);
 }
 
-static char *test_uc_report_basic(void) {
-        uc_suite suite;
+static void test_uc_report_basic(uc_suite suite) {
+        dev_uc_suite sut_suite;
         char tmp_file_path[strlen(TMP_FILE_TEMPLATE) + 1];
         int tmp_file_fd, orig_stdout;
 
@@ -233,85 +244,75 @@ static char *test_uc_report_basic(void) {
 
         orig_stdout = dup(STDOUT_FILENO);
         tmp_file_fd = mkstemp(tmp_file_path);
-        if (tmp_file_fd == -1) return "Failed to create temporary file.";
+        if (tmp_file_fd == -1) {
+                fputs("Failed to create temporary file.", stderr);
+        }
+
         /* Since the STDOUT_REDIR_SET_UP opens. */
         if (close(tmp_file_fd) == -1) {
-                return "Failed to close temporary file.";
+                fputs("Failed to close temporary file.", stderr);
         };
 
         STDOUT_REDIR_SET_UP(tmp_file_path, tmp_file_fd);
-        suite = uc_init(UC_OPT_NONE, "Suite 1", "Suite 1's comment.");
-        if (suite == NULL) {
-                close(tmp_file_fd);
-                return "uc_init failed.";
-        }
-        uc_check(suite, true, "True.");
-        uc_check(suite, false, "False.");
-        uc_report_basic(suite);
-        uc_free(suite);
+        sut_suite = dev_uc_init(dev_UC_OPT_NONE, "Suite 1",
+                                "Suite 1's comment.");
+        dev_uc_check(sut_suite, true, "True.");
+        dev_uc_check(sut_suite, false, "False.");
+        dev_uc_report_basic(sut_suite);
+        dev_uc_free(sut_suite);
         STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);
 
-        mu_assert("Check basic report a.",
-                  files_eq(tmp_file_path, TEST_DIR "uc_report_basic_a"));
+        uc_check(suite, files_eq(tmp_file_path, TEST_DIR "uc_report_basic_a"),
+                 "Check basic report a.");
 
         STDOUT_REDIR_SET_UP(tmp_file_path, tmp_file_fd);
-        suite = uc_init(UC_OPT_NONE, "Second suite", NULL);
-        if (suite == NULL) {
-                close(tmp_file_fd);
-                return "uc_init failed.";
-        }
-        uc_check(suite, true, "True!");
-        uc_report_basic(suite);
-        uc_free(suite);
+        sut_suite = dev_uc_init(dev_UC_OPT_NONE, "Second suite", NULL);
+        dev_uc_check(sut_suite, true, "True!");
+        dev_uc_report_basic(sut_suite);
+        dev_uc_free(sut_suite);
         STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);
 
-        mu_assert("Check basic report b.",
-                  files_eq(tmp_file_path, TEST_DIR "uc_report_basic_b"));
+        uc_check(suite, files_eq(tmp_file_path, TEST_DIR "uc_report_basic_b"),
+                 "Check basic report b.");
 
         STDOUT_REDIR_SET_UP(tmp_file_path, tmp_file_fd);
-        suite = uc_init(UC_OPT_NONE, NULL, NULL);
-        if (suite == NULL) {
-                close(tmp_file_fd);
-                return "uc_init failed.";
-        }
-        for (int i = 0; i < 5; ++i) uc_check(suite, false, "False!");
-        uc_report_basic(suite);
-        uc_free(suite);
+        sut_suite = dev_uc_init(dev_UC_OPT_NONE, NULL, NULL);
+        for (int i = 0; i < 5; ++i) dev_uc_check(sut_suite, false, "False!");
+        dev_uc_report_basic(sut_suite);
+        dev_uc_free(sut_suite);
         STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);
 
-        mu_assert("Check basic report c.",
-                  files_eq(tmp_file_path, TEST_DIR "uc_report_basic_c"));
+        uc_check(suite, files_eq(tmp_file_path, TEST_DIR "uc_report_basic_c"),
+                 "Check basic report c.");
 
         if (remove(tmp_file_path) == -1) {
-                return "Could not remove temporary file";
+                fputs("Could not remove temporary file", stderr);
         }
-
-        return NULL;
 }
 
-void basic_d_test_1(uc_suite suite) {
-        uc_check(suite, true, NULL);
-        uc_check(suite, true, NULL);
-        uc_check(suite, true, NULL);
-        uc_check(suite, true, "...");
-        uc_check(suite, false, "---");
+void basic_d_test_1(dev_uc_suite suite) {
+        dev_uc_check(suite, true, NULL);
+        dev_uc_check(suite, true, NULL);
+        dev_uc_check(suite, true, NULL);
+        dev_uc_check(suite, true, "...");
+        dev_uc_check(suite, false, "---");
 }
 
-void basic_d_test_2(uc_suite suite) {
-        uc_check(suite, false, NULL);
+void basic_d_test_2(dev_uc_suite suite) {
+        dev_uc_check(suite, false, NULL);
 }
 
-void basic_e_test_1(uc_suite suite) {
-        uc_check(suite, true, NULL);
-        uc_check(suite, true, "True.");
+void basic_e_test_1(dev_uc_suite suite) {
+        dev_uc_check(suite, true, NULL);
+        dev_uc_check(suite, true, "True.");
 }
 
-void basic_e_test_2(uc_suite suite) {
-        uc_check(suite, false, NULL);
+void basic_e_test_2(dev_uc_suite suite) {
+        dev_uc_check(suite, false, NULL);
 }
 
-char *test_uc_report_basic_with_tests(void) {
-        uc_suite suite;
+static void test_uc_report_basic_with_tests(uc_suite suite) {
+        dev_uc_suite sut_suite;
         char tmp_file_path[strlen(TMP_FILE_TEMPLATE) + 1];
         int tmp_file_fd, orig_stdout;
 
@@ -320,57 +321,51 @@ char *test_uc_report_basic_with_tests(void) {
 
         orig_stdout = dup(STDOUT_FILENO);
         tmp_file_fd = mkstemp(tmp_file_path);
-        if (tmp_file_fd == -1) return "Failed to create temporary file.";
+        if (tmp_file_fd == -1) {
+                fputs("Failed to create temporary file.", stderr);
+        }
+
         /* Since the STDOUT_REDIR_SET_UP opens. */
         if (close(tmp_file_fd) == -1) {
-                return "Failed to close temporary file.";
+                fputs("Failed to close temporary file.", stderr);
         };
 
         STDOUT_REDIR_SET_UP(tmp_file_path, tmp_file_fd);
-        suite = uc_init(UC_OPT_NONE, "A suite", NULL);
-        if (suite == NULL) {
-                close(tmp_file_fd);
-                return "uc_init failed.";
-        }
-        uc_add_test(suite, &basic_d_test_1, NULL, NULL);
-        uc_add_test(suite, &basic_d_test_2, "Test name", "A comment");
-        uc_run_tests(suite);
-        uc_report_basic(suite);
-        uc_free(suite);
+        sut_suite = dev_uc_init(dev_UC_OPT_NONE, "A suite", NULL);
+        dev_uc_add_test(sut_suite, &basic_d_test_1, NULL, NULL);
+        dev_uc_add_test(sut_suite, &basic_d_test_2, "Test name", "A comment");
+        dev_uc_run_tests(sut_suite);
+        dev_uc_report_basic(sut_suite);
+        dev_uc_free(sut_suite);
         STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);
 
-        mu_assert("Check basic report d.",
-                  files_eq(tmp_file_path, TEST_DIR "uc_report_basic_d"));
+        uc_check(suite, files_eq(tmp_file_path, TEST_DIR "uc_report_basic_d"),
+                 "Check basic report d.");
 
         STDOUT_REDIR_SET_UP(tmp_file_path, tmp_file_fd);
-        suite = uc_init(UC_OPT_NONE, NULL, "Comment about the suite.");
-        if (suite == NULL) {
-                close(tmp_file_fd);
-                return "uc_init failed.";
-        }
-        uc_check(suite, true, NULL);
-        uc_check(suite, false, NULL);
-        uc_add_test(suite, basic_e_test_1, "1st test", NULL);
-        uc_add_test(suite, basic_e_test_2, "2nd test", "A comment...");
-        uc_run_tests(suite);
-        uc_check(suite, false, NULL);
-        uc_check(suite, true, NULL);
-        uc_report_basic(suite);
-        uc_free(suite);
+        sut_suite = dev_uc_init(dev_UC_OPT_NONE, NULL,
+                                "Comment about the suite.");
+        dev_uc_check(sut_suite, true, NULL);
+        dev_uc_check(sut_suite, false, NULL);
+        dev_uc_add_test(sut_suite, basic_e_test_1, "1st test", NULL);
+        dev_uc_add_test(sut_suite, basic_e_test_2, "2nd test", "A comment...");
+        dev_uc_run_tests(sut_suite);
+        dev_uc_check(sut_suite, false, NULL);
+        dev_uc_check(sut_suite, true, NULL);
+        dev_uc_report_basic(sut_suite);
+        dev_uc_free(sut_suite);
         STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);
 
-        mu_assert("Check basic report e.",
-                  files_eq(tmp_file_path, TEST_DIR "uc_report_basic_e"));
+        uc_check(suite, files_eq(tmp_file_path, TEST_DIR "uc_report_basic_e"),
+                 "Check basic report e.");
 
         if (remove(tmp_file_path) == -1) {
-                return "Could not remove temporary file";
+                fputs("Could not remove temporary file", stderr);
         }
-
-        return NULL;
 }
 
-static char *test_uc_report_standard(void) {
-        uc_suite suite;
+static void test_uc_report_standard(uc_suite suite) {
+        dev_uc_suite sut_suite;
         char tmp_file_path[strlen(TMP_FILE_TEMPLATE) + 1];
         int tmp_file_fd, orig_stdout;
 
@@ -379,88 +374,79 @@ static char *test_uc_report_standard(void) {
 
         orig_stdout = dup(STDOUT_FILENO);
         tmp_file_fd = mkstemp(tmp_file_path);
-        if (tmp_file_fd == -1) return "Failed to create temporary file.";
+        if (tmp_file_fd == -1) {
+                fputs("Failed to create temporary file.", stderr);
+        }
+
         /* Since the STDOUT_REDIR_SET_UP opens. */
         if (close(tmp_file_fd) == -1) {
-                return "Failed to close temporary file.";
+                fputs("Failed to close temporary file.", stderr);
         };
 
         STDOUT_REDIR_SET_UP(tmp_file_path, tmp_file_fd);
-        suite = uc_init(UC_OPT_NONE, NULL, NULL);
-        if (suite == NULL) {
-                close(tmp_file_fd);
-                return "uc_init failed.";
-        }
-        uc_check(suite, false, "False.");
-        uc_report_standard(suite);
-        uc_free(suite);
+        sut_suite = dev_uc_init(dev_UC_OPT_NONE, NULL, NULL);
+        dev_uc_check(sut_suite, false, "False.");
+        dev_uc_report_standard(sut_suite);
+        dev_uc_free(sut_suite);
         STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);
 
-        mu_assert("Check standard report a.",
-                  files_eq(tmp_file_path, TEST_DIR "uc_report_standard_a"));
+        uc_check(suite,
+                 files_eq(tmp_file_path, TEST_DIR "uc_report_standard_a"),
+                 "Check standard report a.");
 
         STDOUT_REDIR_SET_UP(tmp_file_path, tmp_file_fd);
-        suite = uc_init(UC_OPT_NONE, "Suite b", "This is suite b");
-        if (suite == NULL) {
-                close(tmp_file_fd);
-                return "uc_init failed.";
-        }
-        uc_check(suite, true, NULL);
-        uc_check(suite, true, "");
-        uc_check(suite, true, NULL);
-        uc_report_standard(suite);
-        uc_free(suite);
+        sut_suite = dev_uc_init(dev_UC_OPT_NONE, "Suite b", "This is suite b");
+        dev_uc_check(sut_suite, true, NULL);
+        dev_uc_check(sut_suite, true, "");
+        dev_uc_check(sut_suite, true, NULL);
+        dev_uc_report_standard(sut_suite);
+        dev_uc_free(sut_suite);
         STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);
 
-        mu_assert("Check standard report b.",
-                  files_eq(tmp_file_path, TEST_DIR "uc_report_standard_b"));
+        uc_check(suite,
+                 files_eq(tmp_file_path, TEST_DIR "uc_report_standard_b"),
+                 "Check standard report b.");
 
         STDOUT_REDIR_SET_UP(tmp_file_path, tmp_file_fd);
-        suite = uc_init(UC_OPT_NONE, "Suite c", NULL);
-        if (suite == NULL) {
-                close(tmp_file_fd);
-                return "uc_init failed.";
-        }
-        uc_check(suite, true, NULL);
-        uc_check(suite, false, "1st failure");
-        uc_check(suite, false, "2nd failure");
-        uc_check(suite, false, "3rd failure");
-        uc_check(suite, true, "True.");
-        uc_check(suite, false, NULL);
-        uc_report_standard(suite);
-        uc_free(suite);
+        sut_suite = dev_uc_init(dev_UC_OPT_NONE, "Suite c", NULL);
+        dev_uc_check(sut_suite, true, NULL);
+        dev_uc_check(sut_suite, false, "1st failure");
+        dev_uc_check(sut_suite, false, "2nd failure");
+        dev_uc_check(sut_suite, false, "3rd failure");
+        dev_uc_check(sut_suite, true, "True.");
+        dev_uc_check(sut_suite, false, NULL);
+        dev_uc_report_standard(sut_suite);
+        dev_uc_free(sut_suite);
         STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);
 
-        mu_assert("Check standard report c.",
-                  files_eq(tmp_file_path, TEST_DIR "uc_report_standard_c"));
+        uc_check(suite,
+                 files_eq(tmp_file_path, TEST_DIR "uc_report_standard_c"),
+                 "Check standard report c.");
 
         if (remove(tmp_file_path) == -1) {
-                return "Could not remove temporary file";
+                fputs("Could not remove temporary file", stderr);
         }
-
-        return NULL;
-
 }
 
-void standard_d_test_1(uc_suite suite) {
-        uc_check(suite, false, NULL);
+void standard_d_test_1(dev_uc_suite suite) {
+        dev_uc_check(suite, false, NULL);
 }
 
-void standard_d_test_2(uc_suite suite) {
-        uc_check(suite, false, NULL);
+void standard_d_test_2(dev_uc_suite suite) {
+        dev_uc_check(suite, false, NULL);
 }
 
-void standard_e_test_1(uc_suite suite) {
-        uc_check(suite, false, "Failure!");
-        uc_check(suite, false, "Failure!!");
+void standard_e_test_1(dev_uc_suite suite) {
+        dev_uc_check(suite, false, "Failure!");
+        dev_uc_check(suite, false, "Failure!!");
 }
 
-void standard_e_test_2(uc_suite suite) {
-        uc_check(suite, false, "Hmm...");
+void standard_e_test_2(dev_uc_suite suite) {
+        dev_uc_check(suite, false, "Hmm...");
 }
 
-static char *test_uc_report_standard_with_tests(void) {
-        uc_suite suite;
+static void test_uc_report_standard_with_tests(uc_suite suite) {
+        dev_uc_suite sut_suite;
         char tmp_file_path[strlen(TMP_FILE_TEMPLATE) + 1];
         int tmp_file_fd, orig_stdout;
 
@@ -469,52 +455,47 @@ static char *test_uc_report_standard_with_tests(void) {
 
         orig_stdout = dup(STDOUT_FILENO);
         tmp_file_fd = mkstemp(tmp_file_path);
-        if (tmp_file_fd == -1) return "Failed to create temporary file.";
+        if (tmp_file_fd == -1) {
+                fputs("Failed to create temporary file.", stderr);
+        }
+
         /* Since the STDOUT_REDIR_SET_UP opens. */
         if (close(tmp_file_fd) == -1) {
-                return "Failed to close temporary file.";
+                fputs("Failed to close temporary file.", stderr);
         };
 
         STDOUT_REDIR_SET_UP(tmp_file_path, tmp_file_fd);
-        suite = uc_init(UC_OPT_NONE, NULL, NULL);
-        if (suite == NULL) {
-                close(tmp_file_fd);
-                return "uc_init failed.";
-        }
-        uc_add_test(suite, &standard_d_test_1, "A test...",
-                    "This is a test...");
-        uc_check(suite, false, NULL);
-        uc_add_test(suite, &standard_d_test_2, NULL, NULL);
-        uc_run_tests(suite);
-        uc_report_standard(suite);
-        uc_free(suite);
+        sut_suite = dev_uc_init(dev_UC_OPT_NONE, NULL, NULL);
+        dev_uc_add_test(sut_suite, &standard_d_test_1, "A test...",
+                        "This is a test...");
+        dev_uc_check(sut_suite, false, NULL);
+        dev_uc_add_test(sut_suite, &standard_d_test_2, NULL, NULL);
+        dev_uc_run_tests(sut_suite);
+        dev_uc_report_standard(sut_suite);
+        dev_uc_free(sut_suite);
         STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);
 
-        mu_assert("Check standard report d.",
-                  files_eq(tmp_file_path, TEST_DIR "uc_report_standard_d"));
+        uc_check(suite,
+                 files_eq(tmp_file_path, TEST_DIR "uc_report_standard_d"),
+                 "Check standard report d.");
 
         STDOUT_REDIR_SET_UP(tmp_file_path, tmp_file_fd);
-        suite = uc_init(UC_OPT_NONE, "Suite!", "Comment!");
-        if (suite == NULL) {
-                close(tmp_file_fd);
-                return "uc_init failed.";
-        }
-        uc_check(suite, true, NULL);
-        uc_add_test(suite, standard_e_test_1, "Test!", "Test comment!");
-        uc_add_test(suite, standard_e_test_2, "Another test!",
+        sut_suite = dev_uc_init(dev_UC_OPT_NONE, "Suite!", "Comment!");
+        dev_uc_check(sut_suite, true, NULL);
+        dev_uc_add_test(sut_suite, standard_e_test_1, "Test!", "Test comment!");
+        dev_uc_add_test(sut_suite, standard_e_test_2, "Another test!",
                     "Another test comment!");
-        uc_run_tests(suite);
-        uc_report_standard(suite);
-        uc_free(suite);
+        dev_uc_run_tests(sut_suite);
+        dev_uc_report_standard(sut_suite);
+        dev_uc_free(sut_suite);
         STDOUT_REDIR_TEAR_DOWN(tmp_file_fd, orig_stdout);
 
-        mu_assert("Check standard report e.",
-                  files_eq(tmp_file_path, TEST_DIR "uc_report_standard_e"));
+        uc_check(suite,
+                 files_eq(tmp_file_path, TEST_DIR "uc_report_standard_e"),
+                 "Check standard report e.");
 
         if (remove(tmp_file_path) == -1) {
-                return "Could not remove temporary file";
+                fputs("Could not remove temporary file", stderr);
         }
-
-        return NULL;
 }
 
