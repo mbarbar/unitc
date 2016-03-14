@@ -65,6 +65,7 @@ static void test_uc_report_basic(uc_suite);
 static void test_uc_report_basic_with_tests(uc_suite);
 static void test_uc_report_standard(uc_suite);
 static void test_uc_report_standard_with_tests(uc_suite);
+static void test_isolation(uc_suite);
 
 int main(void) {
         uc_suite main_suite;
@@ -90,6 +91,9 @@ int main(void) {
         uc_add_test(main_suite, &test_uc_report_standard_with_tests,
                     "uc_report_standard tests",
                     "For suites with tests.");
+        uc_add_test(main_suite, &test_isolation,
+                    "Isolation tests",
+                    "By using the same static int in separate tests.");
         uc_run_tests(main_suite);
 
         uc_report_standard(main_suite);
@@ -497,5 +501,29 @@ static void test_uc_report_standard_with_tests(uc_suite suite) {
         if (remove(tmp_file_path) == -1) {
                 fputs("Could not remove temporary file", stderr);
         }
+}
+
+static void incr_static(dev_uc_suite suite) {
+        static int x = 0;
+        ++x;
+
+        dev_uc_check(suite, x == 1, "Should increment once from 0 each time.");
+}
+
+static void test_isolation(uc_suite suite) {
+        dev_uc_suite sut_suite;
+
+        sut_suite = dev_uc_init(dev_UC_OPT_NONE, NULL, NULL);
+        dev_uc_add_test(sut_suite, &incr_static, NULL, NULL);
+        dev_uc_add_test(sut_suite, &incr_static, NULL, NULL);
+        dev_uc_add_test(sut_suite, &incr_static, NULL, NULL);
+        dev_uc_add_test(sut_suite, &incr_static, NULL, NULL);
+        dev_uc_add_test(sut_suite, &incr_static, NULL, NULL);
+        dev_uc_run_tests(sut_suite);
+
+        uc_check(suite, dev_uc_all_tests_passed(sut_suite),
+                 "Check each test ran in a separate address space.");
+
+        dev_uc_free(sut_suite);
 }
 
