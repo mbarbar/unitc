@@ -23,8 +23,7 @@ build:
 
 test: $(TEST_OUT)
 	./$(TEST_OUT)
-	valgrind --leak-check=full --show-leak-kinds=all -v ./$(TEST_OUT) 2>&1\
-		| tail -2
+	./unitc_memcheck.sh
 
 doc: *.c *.h $(DOC_CONF)
 	doxygen $(DOC_CONF)
