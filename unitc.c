@@ -4,7 +4,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
+
 #include <string.h>
+
+#include <unistd.h>
+
+#include <sys/wait.h>
 
 #include <glib.h>
 
@@ -23,6 +28,10 @@
                         (dst) = NULL;\
                 }\
         } while (0)
+
+/** Indices to read/write from/to pipes. */
+#define R 0
+#define WR 1
 
 static const char DEFAULT_SUITE_NAME[] = "Main";
 static const char INDENTATION[] = "    ";
@@ -194,15 +203,41 @@ void uc_add_test(uc_suite suite, void (*test_func)(uc_suite suite),
 }
 
 void uc_run_tests(uc_suite suite) {
+        int ipc_pipe[2];
+
+        if (pipe(ipc_pipe) == -1) {
+                fputs("uc_run_tests: cannot create pipe, not running tests.\n",
+                      stderr);
+                return;
+        }
+
         /* Guaranteed to have at least one element from uc_init. */
         for (GList *curr = g_list_last(suite->tests)->prev; curr != NULL;
              curr = curr->prev) {
                 struct test *test;
+                pid_t pid;
 
                 suite->curr_test = curr;
-
                 test = curr->data;
-                if (test->test_func != NULL) test->test_func(suite);
+
+                pid = fork();
+                if (pid == -1) {
+                        fputs("uc_run_tests: cannot create process.\n", stderr);
+                } else if (pid == 0) {
+                        if (test->test_func != NULL) test->test_func(suite);
+
+                        /* Write the results back. */
+
+                        uc_free(suite);
+                        exit(EXIT_SUCCESS);
+                } else {
+                        if (waitpid(pid, NULL, 0) == -1) {
+                                fputs("uc_run_tests: cannot create process.\n",
+                                      stderr);
+                        }
+
+                        /* Read the results. */
+                }
         }
 
         /* Reset curr_test to account for "dangling checks". */
