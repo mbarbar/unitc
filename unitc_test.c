@@ -42,7 +42,6 @@
                 };\
                 fflush(stdout);\
                 if (dup2(orig_stdout, STDOUT_FILENO) == -1) {\
-                        close(fd);\
                         fputs("dup2 failed (to revert stdout).", stderr);\
                 }\
         } while (0)
@@ -292,6 +291,10 @@ static void test_uc_report_basic(uc_suite suite) {
         if (remove(tmp_file_path) == -1) {
                 fputs("Could not remove temporary file", stderr);
         }
+
+        if (close(orig_stdout) == -1) {
+                fputs("Could not close dup'd stdout fd", stderr);
+        }
 }
 
 void basic_d_test_1(dev_uc_suite suite) {
@@ -366,6 +369,10 @@ static void test_uc_report_basic_with_tests(uc_suite suite) {
         if (remove(tmp_file_path) == -1) {
                 fputs("Could not remove temporary file", stderr);
         }
+
+        if (close(orig_stdout) == -1) {
+                fputs("Could not close dup'd stdout fd", stderr);
+        }
 }
 
 static void test_uc_report_standard(uc_suite suite) {
@@ -429,6 +436,10 @@ static void test_uc_report_standard(uc_suite suite) {
 
         if (remove(tmp_file_path) == -1) {
                 fputs("Could not remove temporary file", stderr);
+        }
+
+        if (close(orig_stdout) == -1) {
+                fputs("Could not close dup'd stdout fd", stderr);
         }
 }
 
@@ -500,6 +511,10 @@ static void test_uc_report_standard_with_tests(uc_suite suite) {
 
         if (remove(tmp_file_path) == -1) {
                 fputs("Could not remove temporary file", stderr);
+        }
+
+        if (close(orig_stdout) == -1) {
+                fputs("Could not close dup'd stdout fd", stderr);
         }
 }
 

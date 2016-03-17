@@ -224,11 +224,13 @@ void uc_run_tests(uc_suite suite) {
                 if (pid == -1) {
                         fputs("uc_run_tests: cannot create process.\n", stderr);
                 } else if (pid == 0) {
+                        close(ipc_pipe[R]);
                         if (test->test_func != NULL) test->test_func(suite);
 
                         /* Write the results back. */
 
                         uc_free(suite);
+                        close(ipc_pipe[WR]);
                         exit(EXIT_SUCCESS);
                 } else {
                         if (waitpid(pid, NULL, 0) == -1) {
@@ -242,6 +244,9 @@ void uc_run_tests(uc_suite suite) {
 
         /* Reset curr_test to account for "dangling checks". */
         suite->curr_test = g_list_last(suite->tests);
+
+        close(ipc_pipe[R]);
+        close(ipc_pipe[WR]);
 }
 
 bool uc_all_tests_passed(uc_suite suite) {
