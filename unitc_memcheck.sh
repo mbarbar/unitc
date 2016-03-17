@@ -7,7 +7,7 @@ VALGRIND_OUT=`valgrind --leak-check=full --show-leak-kinds=all\
 echo "$VALGRIND_OUT" | egrep 'ERROR SUMMARY:.*[1-9]' > /dev/null
 if [ $? -eq 0 ]; then
         echo "$0: errors found."
-        echo $VALGRIND_OUT | less
+        echo -e "$VALGRIND_OUT" | less
 else
         echo "$0: valgrind memcheck passed."
 fi
