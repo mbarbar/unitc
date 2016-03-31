@@ -107,6 +107,30 @@ static void output_test_failures(struct test *test, const unsigned int indent);
   */
 static void output_main_header(uc_suite);
 
+/** Writes the results found in test to wr_fd.
+  *
+  * Format:
+  *  1. Write any non-null character if the checks list is not empty. If the
+  *     checks list is empty, skip to #8.
+  *  2. Write a bool for the result of the current check.
+  *  3. Write a null character if no comment exists for the current check, and
+  *     skip to #6. Otherwise write a non-null character.
+  *  4. Write a size_t for the number of characters in the comment string of
+  *     the current check (does not include the terminating null character).
+  *  5. Write the comment string from the current check one character at a
+  *     time, including the terminating null character.
+  *  6. Write a non-null character if the checks list still has elements.
+  *  7. Repeat #2-#6 until the entire checks list has been written.
+  *  8. Write a null character.
+  */
+static void write_test_results(const struct test *test, const int wr_fd);
+/** Reads the results from r_fd and fills in the curr_test in the suite.
+  * The checks list is populated by calling uc_check.
+  *
+  * The format is as defined by write_test_results.
+  */
+static void read_test_results(uc_suite, const int r_fd);
+
 static void struct_check_free(void *);
 static void struct_test_free(void *);
 
@@ -203,19 +227,18 @@ void uc_add_test(uc_suite suite, void (*test_func)(uc_suite suite),
 }
 
 void uc_run_tests(uc_suite suite) {
-        int ipc_pipe[2];
-
-        if (pipe(ipc_pipe) == -1) {
-                fputs("uc_run_tests: cannot create pipe, not running tests.\n",
-                      stderr);
-                return;
-        }
-
         /* Guaranteed to have at least one element from uc_init. */
         for (GList *curr = g_list_last(suite->tests)->prev; curr != NULL;
              curr = curr->prev) {
+                int ipc_pipe[2];
                 struct test *test;
                 pid_t pid;
+
+                if (pipe(ipc_pipe) == -1) {
+                        fputs("uc_run_tests: cannot create pipe,"
+                              "not running test.\n", stderr);
+                        continue;
+                }
 
                 suite->curr_test = curr;
                 test = curr->data;
@@ -227,26 +250,35 @@ void uc_run_tests(uc_suite suite) {
                         close(ipc_pipe[R]);
                         if (test->test_func != NULL) test->test_func(suite);
 
-                        /* Write the results back. */
+                        write_test_results(test, ipc_pipe[WR]);
 
                         uc_free(suite);
                         close(ipc_pipe[WR]);
                         exit(EXIT_SUCCESS);
                 } else {
                         if (waitpid(pid, NULL, 0) == -1) {
-                                fputs("uc_run_tests: cannot create process.\n",
+                                fputs("uc_run_tests: error creating process.\n",
                                       stderr);
+                                continue;
                         }
 
-                        /* Read the results. */
+                        read_test_results(suite, ipc_pipe[R]);
+                }
+
+                /* child process which closes these will never reach here. */
+                if (close(ipc_pipe[R]) == -1) {
+                        fputs("uc_run_tests: cannot close read end of pipe.\n",
+                              stderr);
+                }
+
+                if (close(ipc_pipe[WR]) == -1) {
+                        fputs("uc_run_tests: cannot close write end of pipe.\n",
+                              stderr);
                 }
         }
 
         /* Reset curr_test to account for "dangling checks". */
         suite->curr_test = g_list_last(suite->tests);
-
-        close(ipc_pipe[R]);
-        close(ipc_pipe[WR]);
 }
 
 bool uc_all_tests_passed(uc_suite suite) {
@@ -352,6 +384,93 @@ void output_main_header(uc_suite suite) {
 
         curr_test = suite->curr_test->data;
         output_checks_fraction(curr_test->num_succ, curr_test->num_checks, 1);
+}
+
+void write_test_results(const struct test *test, const int wr_fd) {
+        static const char non_null = 'X';
+        static const char null = '\0';
+
+        /* Format is defined above prototype. */
+        for (GList *curr = g_list_last(test->checks); curr != NULL;
+             curr = curr->prev) {
+                size_t comment_len;
+                struct check *check;
+
+                /* There are still checks to write. */
+                write(wr_fd, &non_null, sizeof(char));
+
+                check = curr->data;
+                write(wr_fd, &check->result, sizeof(bool));
+
+                if (check->comment != NULL) {
+                        /* Indicate a comment exists. */
+                        write(wr_fd, &non_null, sizeof(char));
+                        comment_len = strlen(check->comment);
+
+                        write(wr_fd, &comment_len, sizeof(size_t));
+
+                        for (char *c = check->comment; *c != '\0'; ++c) {
+                                write(wr_fd, c, sizeof(char));
+                        }
+
+                        /* The terminating null character. */
+                        write(wr_fd, &null, sizeof(char));
+                } else write(wr_fd, &null, sizeof(char));
+        }
+
+        /* No more checks to write. */
+        write(wr_fd, &null, sizeof(char));
+}
+
+void read_test_results(uc_suite suite, const int r_fd) {
+        /* Determines whether to continue reading or not. */
+        char check_char;
+
+        /* Format is defined above write_test_results' protoype. */
+        read(r_fd, &check_char, sizeof(char));
+        while (check_char != '\0') {
+                bool result;
+                char *comment, comment_check;
+
+                read(r_fd, &result, sizeof(bool));
+                read(r_fd, &comment_check, sizeof(char));
+
+                if (comment_check == '\0') comment = NULL;
+                else {
+                        size_t comment_len;
+                        char comment_char;
+
+                        read(r_fd, &comment_len, sizeof(size_t));
+
+                        comment = malloc(sizeof(char) * (comment_len + 1));
+                        if (comment != NULL) {
+                                char *curr;
+
+                                curr = comment;
+
+                                read(r_fd, &comment_char, sizeof(char));
+                                while (comment_char != '\0') {
+                                        *curr = comment_char;
+                                        ++curr;
+                                        read(r_fd, &comment_char, sizeof(char));
+                                }
+
+                                *curr = '\0';
+                        } else {
+                                fprintf(stderr, "Cannot save a comment.");
+                                /* Read the comment anyway to sync. */
+                                read(r_fd, &comment_char, sizeof(char));
+                                while (comment_char != '\0') {
+                                        read(r_fd, &comment_char, sizeof(char));
+                                }
+                        }
+                }
+
+                uc_check(suite, result, comment);
+                if (comment != NULL) free(comment);
+
+                read(r_fd, &check_char, sizeof(char));
+        }
 }
 
 void struct_check_free(void *data) {
