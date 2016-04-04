@@ -29,6 +29,16 @@
                 }\
         } while (0)
 
+/** Call read or write and on failure execute exec_on_failure. rw is the name
+  * of the function to call - read or write.
+  */
+#define TRY_RW(rw, fd, buf, count, exec_on_failure)\
+        do {\
+                if (rw((fd), (buf), (count)) == -1) {\
+                        { exec_on_failure }\
+                }\
+        } while (0)
+
 /** Indices to read/write from/to pipes. */
 #define R 0
 #define WR 1
@@ -107,7 +117,8 @@ static void output_test_failures(struct test *test, const unsigned int indent);
   */
 static void output_main_header(uc_suite);
 
-/** Writes the results found in test to wr_fd.
+/** Writes the results found in test to wr_fd. If a call to write fails,
+  * abort() is called.
   *
   * Format:
   *  1. Write any non-null character if the checks list is not empty. If the
@@ -125,11 +136,12 @@ static void output_main_header(uc_suite);
   */
 static void write_test_results(const struct test *test, const int wr_fd);
 /** Reads the results from r_fd and fills in the curr_test in the suite.
-  * The checks list is populated by calling uc_check.
+  * The checks list is populated by calling uc_check. Returns true if FULL
+  * results were read, otherwise returns false.
   *
   * The format is as defined by write_test_results.
   */
-static void read_test_results(uc_suite, const int r_fd);
+static bool read_test_results(uc_suite, const int r_fd);
 
 static void struct_check_free(void *);
 static void struct_test_free(void *);
@@ -256,13 +268,32 @@ void uc_run_tests(uc_suite suite) {
                         close(ipc_pipe[WR]);
                         exit(EXIT_SUCCESS);
                 } else {
-                        if (waitpid(pid, NULL, 0) == -1) {
+                        int wstatus;
+                        if (waitpid(pid, &wstatus, 0) == -1) {
                                 fputs("uc_run_tests: error creating process.\n",
                                       stderr);
                                 continue;
+                        } else if (WIFSIGNALED(wstatus)) {
+                                /* The writing process called abort(). Don't
+                                 * even try to read.
+                                 */
+                                fputs("uc_run_tests: test failed to run.\n",
+                                      stderr);
+                        } else {
+                                if (!read_test_results(suite, ipc_pipe[R])) {
+                                        /* Information may be incomplete.
+                                         * Delete it all.
+                                         */
+                                        fputs("uc_run_tests: test failed to run"
+                                              ".\n", stderr);
+                                        g_list_free_full(test->checks,
+                                                        &struct_check_free);
+                                        test->checks = NULL;
+                                        test->num_succ = 0;
+                                        test->num_checks = 0;
+                                }
                         }
 
-                        read_test_results(suite, ipc_pipe[R]);
                 }
 
                 /* child process which closes these will never reach here. */
@@ -397,50 +428,56 @@ void write_test_results(const struct test *test, const int wr_fd) {
                 struct check *check;
 
                 /* There are still checks to write. */
-                write(wr_fd, &non_null, sizeof(char));
+                TRY_RW(write, wr_fd, &non_null, sizeof(char), { abort(); });
 
                 check = curr->data;
-                write(wr_fd, &check->result, sizeof(bool));
+                TRY_RW(write, wr_fd, &check->result, sizeof(bool),
+                       { abort(); });
 
                 if (check->comment != NULL) {
                         /* Indicate a comment exists. */
-                        write(wr_fd, &non_null, sizeof(char));
+                        TRY_RW(write, wr_fd, &non_null, sizeof(char),
+                               { abort(); });
                         comment_len = strlen(check->comment);
 
-                        write(wr_fd, &comment_len, sizeof(size_t));
+                        TRY_RW(write, wr_fd, &comment_len, sizeof(size_t),
+                               { abort(); });
 
                         for (char *c = check->comment; *c != '\0'; ++c) {
-                                write(wr_fd, c, sizeof(char));
+                                TRY_RW(write, wr_fd, c, sizeof(char),
+                                       { abort(); });
                         }
 
                         /* The terminating null character. */
-                        write(wr_fd, &null, sizeof(char));
-                } else write(wr_fd, &null, sizeof(char));
+                        TRY_RW(write, wr_fd, &null, sizeof(char), { abort(); });
+                } else TRY_RW(write, wr_fd, &null, sizeof(char), { abort(); });
         }
 
         /* No more checks to write. */
-        write(wr_fd, &null, sizeof(char));
+        TRY_RW(write, wr_fd, &null, sizeof(char), { abort(); });
 }
 
-void read_test_results(uc_suite suite, const int r_fd) {
+bool read_test_results(uc_suite suite, const int r_fd) {
+#define RET_FALSE { return false; }
         /* Determines whether to continue reading or not. */
         char check_char;
 
         /* Format is defined above write_test_results' protoype. */
-        read(r_fd, &check_char, sizeof(char));
+        TRY_RW(read, r_fd, &check_char, sizeof(char), RET_FALSE);
         while (check_char != '\0') {
                 bool result;
                 char *comment, comment_check;
 
-                read(r_fd, &result, sizeof(bool));
-                read(r_fd, &comment_check, sizeof(char));
+                TRY_RW(read, r_fd, &result, sizeof(bool), RET_FALSE);
+                TRY_RW(read, r_fd, &comment_check, sizeof(char), RET_FALSE);
 
                 if (comment_check == '\0') comment = NULL;
                 else {
                         size_t comment_len;
                         char comment_char;
 
-                        read(r_fd, &comment_len, sizeof(size_t));
+                        TRY_RW(read, r_fd, &comment_len, sizeof(size_t),
+                               RET_FALSE);
 
                         comment = malloc(sizeof(char) * (comment_len + 1));
                         if (comment != NULL) {
@@ -448,20 +485,26 @@ void read_test_results(uc_suite suite, const int r_fd) {
 
                                 curr = comment;
 
-                                read(r_fd, &comment_char, sizeof(char));
+                                TRY_RW(read, r_fd, &comment_char, sizeof(char),
+                                       { free(comment); return false; });
                                 while (comment_char != '\0') {
                                         *curr = comment_char;
                                         ++curr;
-                                        read(r_fd, &comment_char, sizeof(char));
+                                        TRY_RW(read, r_fd, &comment_char,
+                                               sizeof(char),
+                                               { free(comment);
+                                                 return false; });
                                 }
 
                                 *curr = '\0';
                         } else {
                                 fprintf(stderr, "Cannot save a comment.");
                                 /* Read the comment anyway to sync. */
-                                read(r_fd, &comment_char, sizeof(char));
+                                TRY_RW(read, r_fd, &comment_char, sizeof(char),
+                                       RET_FALSE);
                                 while (comment_char != '\0') {
-                                        read(r_fd, &comment_char, sizeof(char));
+                                        TRY_RW(read, r_fd, &comment_char,
+                                               sizeof(char), RET_FALSE);
                                 }
                         }
                 }
@@ -469,8 +512,11 @@ void read_test_results(uc_suite suite, const int r_fd) {
                 uc_check(suite, result, comment);
                 if (comment != NULL) free(comment);
 
-                read(r_fd, &check_char, sizeof(char));
+                TRY_RW(read, r_fd, &check_char, sizeof(char), RET_FALSE);
         }
+
+        return true;
+#undef RET_FALSE
 }
 
 void struct_check_free(void *data) {
