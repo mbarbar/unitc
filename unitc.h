@@ -109,3 +109,7 @@ void uc_report_basic(uc_suite suite);
   * @param suite Test suite to generate report from.
   */
 void uc_report_standard(uc_suite suite);
+
+/** \mainpage notitle
+  * See [README](TODO) or [API documentation](TODO).
+  */
