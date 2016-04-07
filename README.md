@@ -4,7 +4,7 @@ unitc is a simple to use C unit testing library.
 
 ## Documentation
 unitc is documented with Doxygen. API documentation is available
-[here](TODO).
+[here](http://mbarbar.github.io/unitc/doc/unitc_8h.html).
 
 ## Installation
 unitc has only been tested on Linux, but *should* work on POSIX systems.
