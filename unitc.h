@@ -111,5 +111,6 @@ void uc_report_basic(uc_suite suite);
 void uc_report_standard(uc_suite suite);
 
 /** \mainpage notitle
-  * See [README](TODO) or [API documentation](TODO).
+  * See [README](https://github.com/mbarbar/unitc) on the project page
+  * or [API documentation](http://mbarbar.github.io/unitc/doc/unitc_8h.html).
   */
