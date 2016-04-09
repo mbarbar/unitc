@@ -128,8 +128,8 @@ static void output_main_header(uc_suite);
   *     skip to #6. Otherwise write a non-null character.
   *  4. Write a size_t for the number of characters in the comment string of
   *     the current check (does not include the terminating null character).
-  *  5. Write the comment string from the current check one character at a
-  *     time, including the terminating null character.
+  *  5. Write the comment string from the current check, including the
+  *     terminating null character.
   *  6. Write a non-null character if the checks list still has elements.
   *  7. Repeat #2-#6 until the entire checks list has been written.
   *  8. Write a null character.
@@ -443,13 +443,8 @@ void write_test_results(const struct test *test, const int wr_fd) {
                         TRY_RW(write, wr_fd, &comment_len, sizeof(size_t),
                                { abort(); });
 
-                        for (char *c = check->comment; *c != '\0'; ++c) {
-                                TRY_RW(write, wr_fd, c, sizeof(char),
-                                       { abort(); });
-                        }
-
-                        /* The terminating null character. */
-                        TRY_RW(write, wr_fd, &null, sizeof(char), { abort(); });
+                        TRY_RW(write, wr_fd, check->comment,
+                               sizeof(char) * (comment_len + 1), { abort(); });
                 } else TRY_RW(write, wr_fd, &null, sizeof(char), { abort(); });
         }
 
@@ -474,32 +469,21 @@ bool read_test_results(uc_suite suite, const int r_fd) {
                 if (comment_check == '\0') comment = NULL;
                 else {
                         size_t comment_len;
-                        char comment_char;
 
                         TRY_RW(read, r_fd, &comment_len, sizeof(size_t),
                                RET_FALSE);
 
                         comment = malloc(sizeof(char) * (comment_len + 1));
                         if (comment != NULL) {
-                                char *curr;
-
-                                curr = comment;
-
-                                TRY_RW(read, r_fd, &comment_char, sizeof(char),
+                                TRY_RW(read, r_fd, comment,
+                                       sizeof(char) * (comment_len + 1),
                                        { free(comment); return false; });
-                                while (comment_char != '\0') {
-                                        *curr = comment_char;
-                                        ++curr;
-                                        TRY_RW(read, r_fd, &comment_char,
-                                               sizeof(char),
-                                               { free(comment);
-                                                 return false; });
-                                }
-
-                                *curr = '\0';
                         } else {
+                                char comment_char;
                                 fprintf(stderr, "Cannot save a comment.");
-                                /* Read the comment anyway to sync. */
+                                /* Read the comment one char at a time
+                                 * anyway to sync.
+                                 */
                                 TRY_RW(read, r_fd, &comment_char, sizeof(char),
                                        RET_FALSE);
                                 while (comment_char != '\0') {
