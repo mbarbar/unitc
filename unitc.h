@@ -20,6 +20,13 @@
 typedef struct uc_suite *uc_suite;
 
 
+/** Specifies when (i.e. event) to fire off a hook. */
+enum hook_type {
+        BEFORE, /**< Before each test. Run in each test's address space. */
+        AFTER   /**< After each test. Run in each test's address space. */
+};
+
+
 /** Create a test suite with the specified options.
   *
   * @param options Logical OR of values prefixed with UC_OPT.
@@ -73,6 +80,15 @@ void uc_add_test(uc_suite suite, void (*test_func)(uc_suite suite),
   * @param suite Test suite to run tests for.
   */
 void uc_run_tests(uc_suite suite);
+
+/** Add a hook to run on a specified event during uc_run_tests. When there are
+  * multiple hooks of the same type, they are run in the order they were added.
+  *
+  * @param suite Test suite to add the hook to.
+  * @param type  Specifies when (i.e. event) to run this hook.
+  * @param hook  The function to run.
+  */
+void uc_add_hook(uc_suite suite, enum hook_type type, void (*hook)(void));
 
 /** Check if all tests run for suite have passed (i.e. all checks
   * were successful).
