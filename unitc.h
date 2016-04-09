@@ -2,6 +2,9 @@
   * \brief Function prototypes, macros, and typedefs for unitc.
   */
 
+#ifndef UNITC_H
+#define UNITC_H
+
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -114,3 +117,6 @@ void uc_report_standard(uc_suite suite);
   * See [README](https://github.com/mbarbar/unitc) on the project page
   * or [API documentation](http://mbarbar.github.io/unitc/doc/unitc_8h.html).
   */
+
+#endif /* UNITC_H */
+

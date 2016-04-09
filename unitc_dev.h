@@ -4,6 +4,9 @@
   * Otherwise, name clashes occur.
   */
 
+#ifndef UNITC_DEV_H
+#define UNITC_DEV_H
+
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -28,3 +31,6 @@ bool dev_uc_all_tests_passed(dev_uc_suite suite);
 void dev_uc_report_basic(dev_uc_suite suite);
 
 void dev_uc_report_standard(dev_uc_suite suite);
+
+#endif /* UNITC_DEV_H */
+
