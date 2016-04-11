@@ -13,14 +13,15 @@ unitc has only been tested on Linux, but *should* work on POSIX systems.
 * make
 * C compiler (only tested with gcc)
 * pkg-config
-* [GLib](https://developer.gnome.org/glib/) (also a runtime dependency)
+* [GLib (2)](https://developer.gnome.org/glib/) (also a runtime dependency)
 
 ### Instructions
 1. Grab the source.
 2. Build the shared object:
-```
-make build
-```
+   ```
+   make build
+   ```
+
 3. Copy the shared object `libunitc.so` to some place in the library path.
 4. Copy the header file `unitc.h` to some place in the include path.
 
@@ -43,12 +44,13 @@ make test
 
 This produces an executable of unitc's tests (`unitc_test` from `unitc_test.c`),
 and runs unitc's unit tests and `unitc_memcheck.sh` (wrapper on memcheck).
-Unit test results are output as a standard report. unitc_memcheck.sh
-reports success or shows memcheck's output (in `less`) on failure.
+Unit test results are output as a standard report. `unitc_memcheck.sh`
+reports success, or shows memcheck's output (in `less`) on failure.
 
 ## Example
 The following tests an implementation of some C string functions:
 ```c
+/* example.c */
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -129,4 +131,4 @@ Total successful checks: 6/9.
         Check failed: Check "TEST!" with 4.
 ```
 
-A larger example would be unitc's own tests, stored in `unitc_test.c`.
+A larger example would be unitc's own tests residing in `unitc_test.c`.
