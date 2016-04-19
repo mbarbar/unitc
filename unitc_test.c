@@ -65,6 +65,7 @@ static void test_uc_report_basic_with_tests(uc_suite);
 static void test_uc_report_standard(uc_suite);
 static void test_uc_report_standard_with_tests(uc_suite);
 static void test_isolation(uc_suite);
+static void test_before_hook(uc_suite suite);
 
 int main(void) {
         uc_suite main_suite;
@@ -73,6 +74,7 @@ int main(void) {
                 fputs("uc_init is failing. Aborting.", stderr);
                 return EXIT_FAILURE;
         }
+        /* From here, uc_init (dev) is assumed to be working. */
 
         main_suite = uc_init(UC_OPT_NONE, "unitc tests", NULL);
         uc_add_test(main_suite, &test_files_eq, "files_eq tests",
@@ -93,6 +95,10 @@ int main(void) {
         uc_add_test(main_suite, &test_isolation,
                     "Isolation tests",
                     "By using the same static int in separate tests.");
+        uc_add_test(main_suite, &test_before_hook,
+                    "BEFORE hook tests",
+                    "Shows that the before hooks for EACH test and IN that "
+                    "test's address space.");
         uc_run_tests(main_suite);
 
         uc_report_standard(main_suite);
@@ -538,6 +544,52 @@ static void test_isolation(uc_suite suite) {
 
         uc_check(suite, dev_uc_all_tests_passed(sut_suite),
                  "Check each test ran in a separate address space.");
+
+        dev_uc_free(sut_suite);
+}
+
+static int before_hook_int = 0;
+
+static void incr_before_hook_int() {
+        /* To check hooks are run in the separate address space,
+         * rather than running once before forking anything.
+         */
+        static int x = 0;
+        x -= 3;
+
+        /* If we find out we're not running in a separate address space (i.e.
+         * the test's address space), return early causing
+         * check_before_hook_int to fail since the decrements below will not
+         * run.
+         */
+        if (x != -3) return;
+
+        ++before_hook_int;
+        ++before_hook_int;
+}
+
+static void check_before_hook_int(dev_uc_suite suite) {
+        dev_uc_check(suite, before_hook_int == 2, NULL);
+}
+
+static void test_before_hook(uc_suite suite) {
+        dev_uc_suite sut_suite;
+
+        sut_suite = dev_uc_init(dev_UC_OPT_NONE, NULL, NULL);
+        dev_uc_add_hook(sut_suite, dev_BEFORE, &incr_before_hook_int);
+        /* Need to run multiple times to accurately check the hook ran
+         * for each test, and that it ran in the test's address space.
+         */
+        dev_uc_add_test(sut_suite, &check_before_hook_int, NULL, NULL);
+        dev_uc_add_test(sut_suite, &check_before_hook_int, NULL, NULL);
+        dev_uc_add_test(sut_suite, &check_before_hook_int, NULL, NULL);
+        dev_uc_add_test(sut_suite, &check_before_hook_int, NULL, NULL);
+        dev_uc_add_test(sut_suite, &check_before_hook_int, NULL, NULL);
+        dev_uc_run_tests(sut_suite);
+
+        uc_check(suite, dev_uc_all_tests_passed(sut_suite),
+                 "Check each hook ran before each test, in the test's address "
+                 "space.");
 
         dev_uc_free(sut_suite);
 }
