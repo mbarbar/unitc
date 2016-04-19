@@ -32,6 +32,11 @@ void dev_uc_run_tests(dev_uc_suite suite) {
         uc_run_tests((struct uc_suite *)suite);
 }
 
+void dev_uc_add_hook(dev_uc_suite suite, enum dev_hook_type type,
+                     void (*hook)(void)) {
+        uc_add_hook((struct uc_suite *)suite, (enum hook_type)type, hook);
+}
+
 bool dev_uc_all_tests_passed(dev_uc_suite suite) {
         return uc_all_tests_passed((struct uc_suite *)suite);
 }

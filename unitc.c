@@ -312,6 +312,10 @@ void uc_run_tests(uc_suite suite) {
         suite->curr_test = g_list_last(suite->tests);
 }
 
+void uc_add_hook(uc_suite suite, enum hook_type type, void (*hook)(void)) {
+        return;
+}
+
 bool uc_all_tests_passed(uc_suite suite) {
         if (suite == NULL) return false;
 

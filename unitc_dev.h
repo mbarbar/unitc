@@ -14,6 +14,11 @@
 
 typedef uc_suite dev_uc_suite;
 
+enum dev_hook_type {
+        dev_BEFORE,
+        dev_AFTER
+};
+
 dev_uc_suite dev_uc_init(const uint_least8_t options, const char *name,
                          const char *comment);
 
@@ -25,6 +30,9 @@ void dev_uc_add_test(dev_uc_suite suite, void (*test_func)(dev_uc_suite suite),
                  const char *name, const char *comment);
 
 void dev_uc_run_tests(dev_uc_suite suite);
+
+void dev_uc_add_hook(dev_uc_suite suite, enum dev_hook_type type,
+                     void (*hook)(void));
 
 bool dev_uc_all_tests_passed(dev_uc_suite suite);
 
